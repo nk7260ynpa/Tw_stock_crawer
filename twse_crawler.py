@@ -118,7 +118,7 @@ def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
     df["PER"] = df["PER"].str.replace(",", "").astype(float)
     return df
 
-def crawler_twse(date) -> pd.DataFrame:
+def crawler(date) -> pd.DataFrame:
     url = f'https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date={date.replace("-", "")}&type=ALL&response=json'
     result = requests.get(url, headers=twse_headers())
     result = result.json()
