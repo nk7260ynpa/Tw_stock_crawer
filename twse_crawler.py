@@ -1,4 +1,5 @@
-
+import requests
+import pandas as pd
 
 def en_columns():
     """
@@ -29,6 +30,7 @@ def en_columns():
         "PER"
     ]
     return en_columns
+
 
 def zh2en_columns() -> dict[str, str]:
     """
@@ -83,3 +85,47 @@ def twse_headers():
          }
     return headers
 
+def html2signal() -> dict:
+    html2signal = {
+        "<p> </p>": " ",
+        "<p style= color:green>-</p>": "-",
+        "<p style= color:red>+</p>": "+",
+        "<p>X</p>": "X"
+    }
+    return html2signal
+
+def remove_comma(x: str) -> str:
+    return x.replace(",", "")
+
+def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
+    df = df.rename(columns=zh2en_columns())
+    df["Date"] = date
+    df = df[["Date"] + list(df.columns[:-1])]
+    df["PriceChangeSign"] = df["PriceChangeSign"].map(html2signal())
+    df["TradeVolume"] = df["TradeVolume"].map(remove_comma).astype(int)
+    df["Transaction"] = df["Transaction"].map(remove_comma).astype(int)
+    df["TradeValue"] = df["TradeValue"].map(remove_comma).astype(int)
+    df['Date'] = pd.to_datetime(df['Date'])
+    df["OpenPrice"] = df["OpenPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["HightestPrice"] = df["HightestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["LowestPrice"] = df["LowestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["ClosePrice"] = df["ClosePrice"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["PriceChange"] = df["PriceChange"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["FinalBuyPrice"] = df["FinalBuyPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["FinalBuyVolume"] = df["FinalBuyVolume"].str.replace(",", "").str.replace("--", "0").str.replace("", "0").astype(int)
+    df["FinalSellPrice"] = df["FinalSellPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["FinalSellVolume"] = df["FinalSellVolume"].str.replace(",", "").str.replace("--", "0").str.replace("", "0").astype(int)
+    df["PER"] = df["PER"].str.replace(",", "").astype(float)
+    return df
+
+def crawler_twse(date) -> pd.DataFrame:
+    url = f'https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date={date.replace("-", "")}&type=ALL&response=json'
+    result = requests.get(url, headers=twse_headers())
+    result = result.json()
+    if result["stat"] == "OK":
+        target_table = result["tables"][8]
+        df = pd.DataFrame(columns=target_table["fields"], data=target_table["data"])
+        df = post_process(df, date)
+    else:
+        df = pd.DataFrame(columns=en_columns())
+    return df 
