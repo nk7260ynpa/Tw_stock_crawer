@@ -1,39 +1,68 @@
-import requests
+import cloudscraper
 import pandas as pd
 
-
-
-def tpex_headers():
+def webzh2en_columns() -> dict[str, str]:
     """
-    Return headers for TPEX crawler
+    回傳一個中文欄位名稱對應到英文欄位名稱的字典
 
     Returns:
-        dict: headers for TPEX crawler
-
+        dict: 中文欄位名稱對應到英文欄位名稱的字典
+    
     Examples:
-        >>> tpex_headers()
+        >>> zh2en_columns()
     """
-    headers = {
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Encoding': 'gzip, deflate, br, zstd',
-        'Accept-Language': 'en-US,en;q=0.9,zh-TW;q=0.8,zh;q=0.7',
-        'Connection': 'keep-alive',
-        'Host': 'www.tpex.org.tw',
-        'Referer': 'https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430.php?l=zh-tw',
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
-        'X-Requested-With': 'XMLHttpRequest'
-         }
-    return headers
+    webzh2en_columns = {
+        "代號": "Code",
+        "名稱": "Name",
+        "收盤 ": "Close",
+        "漲跌": "Change",
+        "開盤 ": "Open",
+        "最高 ": "High",
+        "最低": "Low",
+        "成交股數  ": "TradeVol(shares)",
+        " 成交金額(元)": "TradeAmt.(NTD)",
+        " 成交筆數 ": "No.ofTransactions",
+        "最後買價": "LastBestBidPrice",
+        "最後買量<br>(千股)": "LastBidVolume",
+        "最後賣價": "LastBestAskPrice",
+        "最後賣量<br>(千股)": "LastBestAskVolume",
+        "發行股數 ": "IssuedShares",
+        "次日漲停價 ": "NextDayUpLimitPrice",
+        "次日跌停價": "NextDayDownLimitPrice",
+    }
+    return webzh2en_columns
+
+def post_process(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.rename(columns=webzh2en_columns())
+    df["Code"] = df["Code"].astype(str)
+    df["Close"] = df["Close"].replace("----", None).str.replace(",", "").astype(float)
+    df["Change"] = df["Change"].replace("---", None).astype(float)
+    df["Open"] = df["Open"].replace("----", None).str.replace(",", "").astype(float)
+    df["High"] = df["High"].replace("----", None).str.replace(",", "").astype(float)
+    df["Low"] = df["Low"].replace("----", None).str.replace(",", "").astype(float)
+    df["TradeVol(shares)"] = df["TradeVol(shares)"].str.replace(",", "").astype(float)
+    df["TradeAmt.(NTD)"] = df["TradeAmt.(NTD)"].str.replace(",", "").astype(float)
+    df["No.ofTransactions"] = df["No.ofTransactions"].str.replace(",", "").astype(int)
+    df["LastBestBidPrice"] = df["LastBestBidPrice"].str.replace(",", "").astype(float)
+    df["LastBidVolume"] = df["LastBidVolume"].str.replace(",", "").astype(float)
+    df["LastBestAskPrice"] = df["LastBestAskPrice"].str.replace(",", "").astype(float)
+    df["LastBestAskVolume"] = df["LastBestAskVolume"].str.replace(",", "").astype(float)
+    df["IssuedShares"] = df["IssuedShares"].str.replace(",", "").astype(float)
+    df["NextDayUpLimitPrice"] = df["NextDayUpLimitPrice"].str.replace(",", "").astype(float)
+    df["NextDayDownLimitPrice"] = df["NextDayDownLimitPrice"].str.replace(",", "").astype(float)
+    return df
 
 def tpex_crawler(date):
-    url = f"https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php?l=zh-tw&d={date.replace("-", "/")}&se=AL"
-    print(url)
-    result = requests.get(url, headers=tpex_headers())
-    #result = result.json()
-    # if result["stat"] == "OK":
-    #     target_table = result["tables"][8]
-    #     df = pd.DataFrame(columns=target_table["fields"], data=target_table["data"])
-    #     df = post_process(df, date)
-    # else:
-    #     df = pd.DataFrame(columns=en_columns())
-    return result
+    import cloudscraper
+    scraper = cloudscraper.create_scraper()
+    url = "https://www.tpex.org.tw/www/zh-tw/afterTrading/otc"
+    data = {"date": "2024/10/25", "type": "AL"}
+    response = scraper.post(url, data=data)
+    response = response.json()
+    df = pd.DataFrame(columns=response["tables"][0]["fields"], data=response["tables"][0]["data"])
+    df = post_process(df)
+
+    return df
+
+
+    
