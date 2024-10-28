@@ -95,17 +95,26 @@ def html2signal() -> dict:
     return html2signal
 
 def remove_comma(x: str) -> str:
+    """
+    Remove comma from a string.
+
+    Args:
+        x (str): a string with commas
+
+    Returns:
+        str: the string with commas removed
+
+    Examples:
+        >>> remove_comma("1,234")
+    """
     return x.replace(",", "")
 
-def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
+def post_process(df) -> pd.DataFrame:
     df = df.rename(columns=zh2en_columns())
-    df["Date"] = date
-    df = df[["Date"] + list(df.columns[:-1])]
     df["PriceChangeSign"] = df["PriceChangeSign"].map(html2signal())
     df["TradeVolume"] = df["TradeVolume"].map(remove_comma).astype(int)
     df["Transaction"] = df["Transaction"].map(remove_comma).astype(int)
     df["TradeValue"] = df["TradeValue"].map(remove_comma).astype(int)
-    df['Date'] = pd.to_datetime(df['Date'])
     df["OpenPrice"] = df["OpenPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
     df["HightestPrice"] = df["HightestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
     df["LowestPrice"] = df["LowestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
@@ -118,14 +127,58 @@ def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
     df["PER"] = df["PER"].str.replace(",", "").astype(float)
     return df
 
-def crawler(date) -> pd.DataFrame:
+def fetch_twse_data(date: str) -> dict:
+    """
+    Fetch data from the TWSE website for a given date.
+
+    Args:
+        date (str): the date of the data to be fetched
+
+    Returns:
+        dict: the fetched data
+
+    Examples:
+        >>> fetch_twse_data("2022-02-18")
+    """
     url = f'https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date={date.replace("-", "")}&type=ALL&response=json'
-    result = requests.get(url, headers=twse_headers())
-    result = result.json()
-    if result["stat"] == "OK":
-        target_table = result["tables"][8]
+    response = requests.get(url, headers=twse_headers())
+    return response.json()
+
+def parse_twse_data(response) -> pd.DataFrame:
+    """
+    Parse the JSON response from the TWSE website into a DataFrame.
+
+    Args:
+        data (dict): The JSON response from the TWSE website.
+
+    Returns:
+        pd.DataFrame: The parsed DataFrame.
+
+    Examples:
+        >>> parse_twse_data(data)
+    """
+
+    if response["stat"] == "OK":
+        target_table = response["tables"][8]
         df = pd.DataFrame(columns=target_table["fields"], data=target_table["data"])
-        df = post_process(df, date)
+        df = post_process(df)
     else:
         df = pd.DataFrame(columns=en_columns())
-    return df 
+    return df
+
+def twse_crawler(date: str) -> pd.DataFrame:
+    """
+    Crawl the TWSE website for stock data on a given date and process it.
+
+    Args:
+        date (str): The date in 'YYYY-MM-DD' format.
+
+    Returns:
+        pd.DataFrame: The processed DataFrame containing stock data.
+
+    Examples:
+        >>> twse_crawler("2022-02-18")
+    """
+    response = fetch_twse_data(date)
+    df = parse_twse_data(response)
+    return df
