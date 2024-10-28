@@ -32,7 +32,19 @@ def webzh2en_columns() -> dict[str, str]:
     }
     return webzh2en_columns
 
-def post_process(df: pd.DataFrame) -> pd.DataFrame:
+def post_process(df):
+    """
+    將從tpex網站爬下來的資料表做專門的處理
+
+    Args:
+        df (pd.DataFrame): 剛從tpex網站爬下來的資料表
+
+    Returns:
+        pd.DataFrame: 根據每個column做完各自處理的資料表
+
+    Examples:
+        >>> df = post_process(df)
+    """
     df = df.rename(columns=webzh2en_columns())
     df["Code"] = df["Code"].astype(str)
     df["Close"] = df["Close"].replace("----", None).str.replace(",", "").astype(float)
@@ -52,16 +64,51 @@ def post_process(df: pd.DataFrame) -> pd.DataFrame:
     df["NextDayDownLimitPrice"] = df["NextDayDownLimitPrice"].str.replace(",", "").astype(float)
     return df
 
-def tpex_crawler(date):
-    import cloudscraper
+def fetch_tpex_data(date: str) -> dict:
+    """
+    Fetch data from the TPEx website for a given date.
+
+    Args:
+        date (str): The date in 'YYYY-MM-DD' format.
+
+    Returns:
+        dict: The JSON response from the TPEx website.
+    """
     scraper = cloudscraper.create_scraper()
     url = "https://www.tpex.org.tw/www/zh-tw/afterTrading/otc"
-    data = {"date": "2024/10/25", "type": "AL"}
-    response = scraper.post(url, data=data)
-    response = response.json()
-    df = pd.DataFrame(columns=response["tables"][0]["fields"], data=response["tables"][0]["data"])
-    df = post_process(df)
+    formatted_date = date.replace("-", "/")
+    data = {"date": formatted_date, "type": "AL"}
+    response = scraper.post(url, data=data).json()
+    return response
 
+def parse_tpex_data(response: dict) -> pd.DataFrame:
+    """
+    Parse the JSON response from the TPEx website into a DataFrame.
+
+    Args:
+        response (dict): The JSON response from the TPEx website.
+
+    Returns:
+        pd.DataFrame: The parsed DataFrame.
+    """
+    fields = response["tables"][0]["fields"]
+    data = response["tables"][0]["data"]
+    df = pd.DataFrame(columns=fields, data=data)
+    return df
+
+def tpex_crawler(date: str) -> pd.DataFrame:
+    """
+    Crawl the TPEx website for stock data on a given date and process it.
+
+    Args:
+        date (str): The date in 'YYYY-MM-DD' format.
+
+    Returns:
+        pd.DataFrame: The processed DataFrame containing stock data.
+    """
+    response = fetch_tpex_data(date)
+    df = parse_tpex_data(response)
+    df = post_process(df)
     return df
 
 
