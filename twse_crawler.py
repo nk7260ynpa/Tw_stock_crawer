@@ -97,10 +97,8 @@ def html2signal() -> dict:
 def remove_comma(x: str) -> str:
     return x.replace(",", "")
 
-def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
+def post_process(df) -> pd.DataFrame:
     df = df.rename(columns=zh2en_columns())
-    df["Date"] = date
-    df = df[["Date"] + list(df.columns[:-1])]
     df["PriceChangeSign"] = df["PriceChangeSign"].map(html2signal())
     df["TradeVolume"] = df["TradeVolume"].map(remove_comma).astype(int)
     df["Transaction"] = df["Transaction"].map(remove_comma).astype(int)
@@ -125,7 +123,7 @@ def crawler(date) -> pd.DataFrame:
     if result["stat"] == "OK":
         target_table = result["tables"][8]
         df = pd.DataFrame(columns=target_table["fields"], data=target_table["data"])
-        df = post_process(df, date)
+        df = post_process(df)
     else:
         df = pd.DataFrame(columns=en_columns())
     return df 
