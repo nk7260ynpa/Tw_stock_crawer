@@ -34,22 +34,22 @@ def en_columns():
         >>> en_columns()
     """
     en_columns = [
-        "StockID",
+        "SecurityCode",
         "StockName",
         "TradeVolume",
         "Transaction",
         "TradeValue",
-        "OpenPrice",
+        "OpeningPrice",
         "HightestPrice",
         "LowestPrice",
         "ClosePrice",
-        "PriceChangeSign",
-        "PriceChange",
-        "FinalBuyPrice",
-        "FinalBuyVolume",
-        "FinalSellPrice",
-        "FinalSellVolume",
-        "PER"
+        "Dir",
+        "Change",
+        "LastBestBidPrice",
+        "LastBestBidVolume",
+        "LastBestAskPrice",
+        "LastBestAskVolume",
+        "PriceEarningratio"
     ]
     return en_columns
 
@@ -66,22 +66,22 @@ def zh2en_columns() -> dict[str, str]:
     """
 
     zh2en_columns = {
-        "證券代號": "StockID",
+        "證券代號": "SecurityCode",
         "證券名稱": "StockName",
         "成交股數": "TradeVolume",
         "成交筆數": "Transaction",
         "成交金額": "TradeValue",
-        "開盤價": "OpenPrice",
+        "開盤價": "OpeningPrice",
         "最高價": "HightestPrice",
         "最低價": "LowestPrice",
         "收盤價": "ClosePrice",
-        "漲跌(+/-)": "PriceChangeSign",
-        "漲跌價差": "PriceChange",
-        "最後揭示買價": "FinalBuyPrice",
-        "最後揭示買量": "FinalBuyVolume",
-        "最後揭示賣價": "FinalSellPrice",
-        "最後揭示賣量": "FinalSellVolume",
-        "本益比": "PER"
+        "漲跌(+/-)": "Dir",
+        "漲跌價差": "Change",
+        "最後揭示買價": "LastBestBidPrice",
+        "最後揭示買量": "LastBestBidVolume",
+        "最後揭示賣價": "LastBestAskPrice",
+        "最後揭示賣量": "LastBestAskVolume",
+        "本益比": "PriceEarningratio"
     }
     return zh2en_columns
 
@@ -111,20 +111,20 @@ def remove_comma(x: str) -> str:
 
 def post_process(df) -> pd.DataFrame:
     df = df.rename(columns=zh2en_columns())
-    df["PriceChangeSign"] = df["PriceChangeSign"].map(html2signal())
+    df["Dir"] = df["Dir"].map(html2signal())
     df["TradeVolume"] = df["TradeVolume"].map(remove_comma).astype(int)
     df["Transaction"] = df["Transaction"].map(remove_comma).astype(int)
     df["TradeValue"] = df["TradeValue"].map(remove_comma).astype(int)
-    df["OpenPrice"] = df["OpenPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["OpeningPrice"] = df["OpeningPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
     df["HightestPrice"] = df["HightestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
     df["LowestPrice"] = df["LowestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
     df["ClosePrice"] = df["ClosePrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["PriceChange"] = df["PriceChange"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["FinalBuyPrice"] = df["FinalBuyPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["FinalBuyVolume"] = df["FinalBuyVolume"].str.replace(",", "").str.replace("--", "0").str.replace("", "0").astype(int)
-    df["FinalSellPrice"] = df["FinalSellPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["FinalSellVolume"] = df["FinalSellVolume"].str.replace(",", "").str.replace("--", "0").str.replace("", "0").astype(int)
-    df["PER"] = df["PER"].str.replace(",", "").astype(float)
+    df["Change"] = df["Change"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["LastBestBidPrice"] = df["LastBestBidPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["LastBestBidVolume"] = df["LastBestBidVolume"].str.replace(",", "").str.replace("--", "0").str.replace("", "0").astype(int)
+    df["LastBestAskPrice"] = df["LastBestAskPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["LastBestAskVolume"] = df["LastBestAskVolume"].str.replace(",", "").str.replace("--", "0").str.replace("", "0").astype(int)
+    df["PriceEarningratio"] = df["PriceEarningratio"].str.replace(",", "").astype(float)
     return df
 
 def fetch_twse_data(date: str) -> dict:
