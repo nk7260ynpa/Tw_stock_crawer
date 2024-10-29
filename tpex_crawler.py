@@ -48,7 +48,7 @@ def post_process(df):
     df = df.rename(columns=webzh2en_columns())
     df["Code"] = df["Code"].astype(str)
     df["Close"] = df["Close"].replace("----", None).str.replace(",", "").astype(float)
-    df["Change"] = df["Change"].replace("---", None).astype(float)
+    df["Change"] = df["Change"].replace("除權", "0").replace("---", None).astype(float)
     df["Open"] = df["Open"].replace("----", None).str.replace(",", "").astype(float)
     df["High"] = df["High"].replace("----", None).str.replace(",", "").astype(float)
     df["Low"] = df["Low"].replace("----", None).str.replace(",", "").astype(float)
@@ -111,5 +111,6 @@ def tpex_crawler(date: str) -> pd.DataFrame:
     df = post_process(df)
     return df
 
-
+if __name__ == "__main__":
+    df = tpex_crawler("2024-10-29")
     

@@ -182,3 +182,7 @@ def twse_crawler(date: str) -> pd.DataFrame:
     response = fetch_twse_data(date)
     df = parse_twse_data(response)
     return df
+
+if __name__ == "__main__":
+    date = "2022-02-18"
+    df = twse_crawler(date)
