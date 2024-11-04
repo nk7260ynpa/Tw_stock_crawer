@@ -26,3 +26,13 @@ df_tpex = tw_stock_crawer.tpex_crawler("2024-10-15")
 # 抓取當日興櫃股票資料
 df_otc = tw_stock_crawer.taifex_crawler("2024-10-15")
 ```
+
+## 測試
+普通測試
+```bash
+pytest
+```
+包含覆蓋率的測試
+```bash
+pytest --cov-report term-missing --cov-config=.coveragerc --cov=./tw_crawler test/
+```
