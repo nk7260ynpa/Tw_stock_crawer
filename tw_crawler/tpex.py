@@ -111,6 +111,5 @@ def tpex_crawler(date: str) -> pd.DataFrame:
     df = post_process(df)
     return df
 
-if __name__ == "__main__":
-    df = tpex_crawler("2024-10-29")
+
     
