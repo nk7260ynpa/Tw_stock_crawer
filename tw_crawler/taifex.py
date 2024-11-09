@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import io
 
-def webzh2en_columns():
+def webzh2en_columns() -> dict[str, str]:
     """
     回傳一個中文欄位名稱對應到英文欄位名稱的字典
 
@@ -36,7 +36,7 @@ def webzh2en_columns():
     }
     return webzh2en_columns
 
-def post_process(df):
+def post_process(df) -> pd.DataFrame:
     """
     將從taifex網站爬下來的資料表做專門的處理
 

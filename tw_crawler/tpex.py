@@ -32,7 +32,7 @@ def webzh2en_columns() -> dict[str, str]:
     }
     return webzh2en_columns
 
-def post_process(df):
+def post_process(df) -> pd.DataFrame:
     """
     將從tpex網站爬下來的資料表做專門的處理
 

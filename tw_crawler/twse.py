@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 
-def twse_headers():
+def twse_headers() -> dict[str, str]:
     """
     Return headers for TWSE crawler
 
@@ -23,7 +23,7 @@ def twse_headers():
          }
     return headers
 
-def en_columns():
+def en_columns() -> list[str]:
     """
     Return English columns for TWSE crawler
 
