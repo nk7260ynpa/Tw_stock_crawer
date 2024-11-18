@@ -87,10 +87,10 @@ def zh2en_columns() -> dict[str, str]:
 
 def html2signal() -> dict:
     html2signal = {
-        "<p> </p>": " ",
-        "<p style= color:green>-</p>": "-",
-        "<p style= color:red>+</p>": "+",
-        "<p>X</p>": "X"
+        "<p> </p>": 0,
+        "<p style= color:green>-</p>": -1,
+        "<p style= color:red>+</p>": 1,
+        "<p>X</p>": 0
     }
     return html2signal
 
@@ -109,9 +109,10 @@ def remove_comma(x: str) -> str:
     """
     return x.replace(",", "")
 
-def post_process(df) -> pd.DataFrame:
+def post_process(df, date) -> pd.DataFrame:
     df = df.rename(columns=zh2en_columns())
-    df["Dir"] = df["Dir"].map(html2signal())
+    df["Date"] = date
+    df["Date"] = pd.to_datetime(df["Date"])
     df["TradeVolume"] = df["TradeVolume"].map(remove_comma).astype(int)
     df["Transaction"] = df["Transaction"].map(remove_comma).astype(int)
     df["TradeValue"] = df["TradeValue"].map(remove_comma).astype(int)
@@ -119,12 +120,17 @@ def post_process(df) -> pd.DataFrame:
     df["HightestPrice"] = df["HightestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
     df["LowestPrice"] = df["LowestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
     df["ClosePrice"] = df["ClosePrice"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["Dir"] = df["Dir"].map(html2signal()).astype(float)
     df["Change"] = df["Change"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["Change"] = df["Change"] * df["Dir"]
     df["LastBestBidPrice"] = df["LastBestBidPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
     df["LastBestBidVolume"] = df["LastBestBidVolume"].str.replace(",", "").str.replace("--", "0").astype(int)
     df["LastBestAskPrice"] = df["LastBestAskPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
     df["LastBestAskVolume"] = df["LastBestAskVolume"].str.replace(",", "").str.replace("--", "0").astype(int)
     df["PriceEarningratio"] = df["PriceEarningratio"].str.replace(",", "").astype(float)
+
+    df = df.drop(columns=["Dir"])
+    df = df[["Date"] + [col for col in df.columns if col != "Date"]]
     return df
 
 def fetch_twse_data(date: str) -> dict:
@@ -144,7 +150,7 @@ def fetch_twse_data(date: str) -> dict:
     response = requests.get(url, headers=twse_headers())
     return response.json()
 
-def parse_twse_data(response) -> pd.DataFrame:
+def parse_twse_data(response, date) -> pd.DataFrame:
     """
     Parse the JSON response from the TWSE website into a DataFrame.
 
@@ -161,7 +167,7 @@ def parse_twse_data(response) -> pd.DataFrame:
     if response["stat"] == "OK":
         target_table = response["tables"][8]
         df = pd.DataFrame(columns=target_table["fields"], data=target_table["data"])
-        df = post_process(df)
+        df = post_process(df, date)
     else:
         df = pd.DataFrame(columns=en_columns())
     return df
@@ -180,5 +186,5 @@ def twse_crawler(date: str) -> pd.DataFrame:
         >>> twse_crawler("2022-02-18")
     """
     response = fetch_twse_data(date)
-    df = parse_twse_data(response)
+    df = parse_twse_data(response, date)
     return df

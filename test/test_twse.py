@@ -62,10 +62,10 @@ def test_zh2en_columns():
 def test_html2signal():
     result = twse.html2signal()
     expect = {
-        "<p> </p>": " ",
-        "<p style= color:green>-</p>": "-",
-        "<p style= color:red>+</p>": "+",
-        "<p>X</p>": "X"
+        "<p> </p>": 0,
+        "<p style= color:green>-</p>": -1,
+        "<p style= color:red>+</p>": 1,
+        "<p>X</p>": 0
     }
     assert result == expect
 
@@ -94,8 +94,10 @@ def test_post_process():
         "本益比": ["20.0"]
     }
     df = pd.DataFrame(data)
-    result = twse.post_process(df)
+    date = "2022-02-18"
+    result = twse.post_process(df, date)
     expect = pd.DataFrame({
+        "Date": pd.to_datetime(["2022-02-18"]),
         "SecurityCode": ["2330"],
         "StockName": ["台積電"],
         "TradeVolume": [1234567],
@@ -105,7 +107,6 @@ def test_post_process():
         "HightestPrice": [610.0],
         "LowestPrice": [590.0],
         "ClosePrice": [605.0],
-        "Dir": ["+"],
         "Change": [5.0],
         "LastBestBidPrice": [604.0],
         "LastBestBidVolume": [1000],
@@ -135,8 +136,10 @@ def test_parse_twse_data():
             "data": [["2330", "台積電", "1,234,567", "1,234", "123,456,789", "600", "610", "590", "605", "<p style= color:red>+</p>", "5", "604", "1,000", "605", "2,000", "20"]]
         }]
     }
-    result = twse.parse_twse_data(response)
+    date = "2022-02-18"
+    result = twse.parse_twse_data(response, date)
     expect = pd.DataFrame({
+        "Date": pd.to_datetime(["2022-02-18"]),
         "SecurityCode": ["2330"],
         "StockName": ["台積電"],
         "TradeVolume": [1234567],
@@ -146,7 +149,6 @@ def test_parse_twse_data():
         "HightestPrice": [610.0],
         "LowestPrice": [590.0],
         "ClosePrice": [605.0],
-        "Dir": ["+"],
         "Change": [5.0],
         "LastBestBidPrice": [604.0],
         "LastBestBidVolume": [1000],
@@ -159,7 +161,7 @@ def test_parse_twse_data():
         "stat": "NG",
         "msgArray": []
     }
-    result = twse.parse_twse_data(response)
+    result = twse.parse_twse_data(response, date)
     expect = pd.DataFrame(columns=twse.en_columns())
     pd.testing.assert_frame_equal(result, expect)
 
@@ -175,6 +177,7 @@ def test_twse_crawler(mocker):
     mocker.patch('tw_crawler.twse.requests.get', return_value=mocker.Mock(json=lambda: mock_response))
     result = twse.twse_crawler("2022-02-18")
     expect = pd.DataFrame({
+        "Date": pd.to_datetime(["2022-02-18"]),
         "SecurityCode": ["2330"],
         "StockName": ["台積電"],
         "TradeVolume": [1234567],
@@ -184,7 +187,6 @@ def test_twse_crawler(mocker):
         "HightestPrice": [610.0],
         "LowestPrice": [590.0],
         "ClosePrice": [605.0],
-        "Dir": ["+"],
         "Change": [5.0],
         "LastBestBidPrice": [604.0],
         "LastBestBidVolume": [1000],
