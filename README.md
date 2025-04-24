@@ -15,16 +15,16 @@ python setup.py install
 以下為範例：
 
 ```python
-import tw_stock_crawer
+import tw_crawler
 
 # 抓取當日上市股票資料
-df_twse = tw_stock_crawer.twse_crawler("2024-10-15")
+df_twse = tw_crawler.twse_crawler("2024-10-15")
 
 # 抓取當日上櫃股票資料
-df_tpex = tw_stock_crawer.tpex_crawler("2024-10-15")
+df_tpex = tw_crawler.tpex_crawler("2024-10-15")
 
 # 抓取當日興櫃股票資料
-df_taifex = tw_stock_crawer.taifex_crawler("2024-10-15")
+df_taifex = tw_crawler.taifex_crawler("2024-10-15")
 ```
 
 ## 測試
