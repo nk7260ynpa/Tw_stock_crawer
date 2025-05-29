@@ -40,7 +40,7 @@ def en_columns() -> list[str]:
         "Transaction",
         "TradeValue",
         "OpeningPrice",
-        "HightestPrice",
+        "HighestPrice",
         "LowestPrice",
         "ClosingPrice",
         "Dir",
@@ -72,7 +72,7 @@ def zh2en_columns() -> dict[str, str]:
         "成交筆數": "Transaction",
         "成交金額": "TradeValue",
         "開盤價": "OpeningPrice",
-        "最高價": "HightestPrice",
+        "最高價": "HighestPrice",
         "最低價": "LowestPrice",
         "收盤價": "ClosingPrice",
         "漲跌(+/-)": "Dir",
@@ -117,7 +117,7 @@ def post_process(df, date) -> pd.DataFrame:
     df["Transaction"] = df["Transaction"].map(remove_comma).astype(int)
     df["TradeValue"] = df["TradeValue"].map(remove_comma).astype(int)
     df["OpeningPrice"] = df["OpeningPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["HightestPrice"] = df["HightestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["HighestPrice"] = df["HighestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
     df["LowestPrice"] = df["LowestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
     df["ClosingPrice"] = df["ClosingPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
     df["Dir"] = df["Dir"].map(html2signal()).astype(float)
