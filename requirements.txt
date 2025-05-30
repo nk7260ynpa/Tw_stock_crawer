@@ -1,1 +1,3 @@
 cloudscraper
+setuptools
+pandas

@@ -3,9 +3,16 @@
 [![](https://img.shields.io/static/v1?label=license&message=MIT&color=green)](./License.txt)
 
 ## 安裝
+
+### 直接使用安裝套件
 ```bash
 pip install -r requirements.txt
 python setup.py install
+```
+
+### 使用docker環境
+```bash
+docker run --rm -it  nk7260ynpa/tw_stocker_crawler  bash
 ```
 
 ## 使用
