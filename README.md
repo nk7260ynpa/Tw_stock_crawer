@@ -10,7 +10,7 @@ pip install -r requirements.txt
 python setup.py install
 ```
 
-### 使用docker
+### 使用docker環境
 ```bash
 docker run --rm -it  nk7260ynpa/tw_stocker_crawler  bash
 ```
