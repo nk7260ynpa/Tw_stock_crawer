@@ -38,7 +38,7 @@ df_taifex = tw_crawler.taifex_crawler("2024-10-15")
 1. 啟動Fastapi server，並提供API接口。
 
 ```bash
-docker run -d -p 6738:6738 --rm nk7260ynpa/tw_stocker_crawler:latest
+docker run -d --name tw_stocker_crawler -p 6738:6738 --rm nk7260ynpa/tw_stocker_crawler:latest
 ```
 2. 使用curl或Postman等工具，向API發送請求。
 ```python
