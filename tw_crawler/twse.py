@@ -1,28 +1,6 @@
 import requests
 import pandas as pd
 
-def twse_headers() -> dict[str, str]:
-    """
-    Return headers for TWSE crawler
-
-    Returns:
-        dict: headers for TWSE crawler
-
-    Examples:
-        >>> twse_headers()
-    """
-    headers = {
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Accept-Language': 'en-US,en;q=0.9,zh-TW;q=0.8,zh;q=0.7',
-        'Connection': 'keep-alive',
-        'Host': 'www.twse.com.tw',
-        'Referer': 'https://www.twse.com.tw/zh/trading/historical/mi-index.html',
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
-        'X-Requested-With': 'XMLHttpRequest'
-         }
-    return headers
-
 def en_columns() -> list[str]:
     """
     Return English columns for TWSE crawler
@@ -30,7 +8,7 @@ def en_columns() -> list[str]:
     Returns:
         list: English columns for TWSE crawler
 
-    Examples:
+    Examples:｀
         >>> en_columns()
     """
     en_columns = [
@@ -147,7 +125,7 @@ def fetch_twse_data(date: str) -> dict:
         >>> fetch_twse_data("2022-02-18")
     """
     url = f'https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date={date.replace("-", "")}&type=ALL&response=json'
-    response = requests.get(url, headers=twse_headers())
+    response = requests.get(url)
     return response.json()
 
 def parse_twse_data(response, date) -> pd.DataFrame:
