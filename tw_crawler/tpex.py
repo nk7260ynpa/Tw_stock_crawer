@@ -23,9 +23,9 @@ def webzh2en_columns() -> dict[str, str]:
         " 成交金額(元)": "TradeAmt.(NTD)",
         " 成交筆數 ": "No.ofTransactions",
         "最後買價": "LastBestBidPrice",
-        "最後買量<br>(千股)": "LastBidVolume",
+        "最後買量<br>(張數)": "LastBidVolume",
         "最後賣價": "LastBestAskPrice",
-        "最後賣量<br>(千股)": "LastBestAskVolume",
+        "最後賣量<br>(張數)": "LastBestAskVolume",
         "發行股數 ": "IssuedShares",
         "次日漲停價 ": "NextDayUpLimitPrice",
         "次日跌停價": "NextDayDownLimitPrice",
@@ -48,7 +48,7 @@ def post_process(df) -> pd.DataFrame:
     df = df.rename(columns=webzh2en_columns())
     df["Code"] = df["Code"].astype(str)
     df["Close"] = df["Close"].replace("----", None).str.replace(",", "").astype(float)
-    df["Change"] = df["Change"].replace("除權", "0").replace("---", None).astype(float)
+    df["Change"] = df["Change"].replace("除權", None).replace("除息", None).replace("---", None).astype(float)
     df["Open"] = df["Open"].replace("----", None).str.replace(",", "").astype(float)
     df["High"] = df["High"].replace("----", None).str.replace(",", "").astype(float)
     df["Low"] = df["Low"].replace("----", None).str.replace(",", "").astype(float)
