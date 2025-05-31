@@ -9,3 +9,6 @@ WORKDIR /workspace
 COPY ../ /workspace/
 RUN pip install -r requirements.txt
 RUN python setup.py install
+
+EXPOSE 6738
+CMD ["sh", "server.sh"]

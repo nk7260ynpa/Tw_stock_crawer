@@ -1,3 +1,5 @@
 cloudscraper
 setuptools
 pandas
+fastapi
+uvicorn
