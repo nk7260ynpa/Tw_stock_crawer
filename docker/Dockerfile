@@ -6,8 +6,9 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 WORKDIR /workspace
 
-COPY ../ /workspace/
+COPY ../requirements.txt /workspace/requirements.txt
 RUN pip install -r requirements.txt
+COPY ../ /workspace/
 RUN python setup.py install
 
 EXPOSE 6738
