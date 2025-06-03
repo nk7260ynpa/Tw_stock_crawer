@@ -1,5 +1,9 @@
 import requests
+import logging
+
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 def en_columns() -> list[str]:
     """
@@ -163,6 +167,7 @@ def twse_crawler(date: str) -> pd.DataFrame:
     Examples:
         >>> twse_crawler("2022-02-18")
     """
+    logger.info(f"Starting Request data from TWSE")
     response = fetch_twse_data(date)
     df = parse_twse_data(response, date)
     return df
