@@ -1,7 +1,7 @@
 import requests
-import pandas as pd
-
 import argparse
+
+import pandas as pd
 
 def main(opt):
     NAME = opt.name
