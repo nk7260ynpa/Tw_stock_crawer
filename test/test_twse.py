@@ -114,6 +114,13 @@ def test_fetch_twse_data(mocker):
     result = twse.fetch_twse_data("2022-02-18")
     assert result == mock_response
 
+def test_gen_empty_date_df():
+    result = twse.gen_empty_date_df()
+    expect = pd.DataFrame(columns=twse.en_columns())
+    expect.insert(0, "Date", pd.NaT)
+    expect = expect.drop(columns=["Dir"])
+    pd.testing.assert_frame_equal(result, expect)
+
 def test_parse_twse_data():
     response = {
         "stat": "OK",
