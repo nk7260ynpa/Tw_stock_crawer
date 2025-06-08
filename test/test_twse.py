@@ -149,6 +149,8 @@ def test_parse_twse_data():
     }
     result = twse.parse_twse_data(response, date)
     expect = pd.DataFrame(columns=twse.en_columns())
+    expect.insert(0, "Date", pd.NaT)
+    expect = expect.drop(columns=["Dir"])
     pd.testing.assert_frame_equal(result, expect)
 
 
