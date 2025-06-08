@@ -133,6 +133,12 @@ def fetch_twse_data(date: str) -> dict:
     return response.json()
 
 def gen_empty_date_df():
+    """
+    generate an empty DataFrame when TWSE is not open
+    
+    Returns:
+        pd.DataFrame: an empty DataFrame with the correct columns
+    """
     df = pd.DataFrame(columns=en_columns())
     df.insert(0, "Date", pd.NaT)
     df = df.drop(columns=["Dir"])
@@ -151,7 +157,6 @@ def parse_twse_data(response, date) -> pd.DataFrame:
     Examples:
         >>> parse_twse_data(data)
     """
-
     if response["stat"] == "OK":
         target_table = response["tables"][8]
         df = pd.DataFrame(columns=target_table["fields"], data=target_table["data"])
