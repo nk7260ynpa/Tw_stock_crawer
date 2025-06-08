@@ -21,4 +21,4 @@ def craw_data(name, date):
     logger.info(f"Starting crawler: {crawlertype} for date: {date}")
     df = crawler(date)
     logger.info(f"Crawler {crawlertype} completed for date: {date}, data shape: {df.shape}")
-    return {"data": df.to_json(orient="records")}
+    return {"data": df.to_json()}
