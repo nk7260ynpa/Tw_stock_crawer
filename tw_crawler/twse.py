@@ -132,6 +132,12 @@ def fetch_twse_data(date: str) -> dict:
     response = requests.get(url)
     return response.json()
 
+def gen_empty_date_df():
+    df = pd.DataFrame(columns=en_columns())
+    df.insert(0, "Date", pd.NaT)
+    df = df.drop(columns=["Dir"])
+    return df
+
 def parse_twse_data(response, date) -> pd.DataFrame:
     """
     Parse the JSON response from the TWSE website into a DataFrame.
@@ -151,7 +157,7 @@ def parse_twse_data(response, date) -> pd.DataFrame:
         df = pd.DataFrame(columns=target_table["fields"], data=target_table["data"])
         df = post_process(df, date)
     else:
-        df = pd.DataFrame(columns=en_columns())
+        df = gen_empty_date_df()
     return df
 
 def twse_crawler(date: str) -> pd.DataFrame:
