@@ -32,7 +32,7 @@ def webzh2en_columns() -> dict[str, str]:
     }
     return webzh2en_columns
 
-def post_process(df) -> pd.DataFrame:
+def post_process(df, date) -> pd.DataFrame:
     """
     將從tpex網站爬下來的資料表做專門的處理
 
@@ -46,6 +46,8 @@ def post_process(df) -> pd.DataFrame:
         >>> df = post_process(df)
     """
     df = df.rename(columns=webzh2en_columns())
+    df["Date"] = date
+    df["Date"] = pd.to_datetime(df["Date"])
     df["Code"] = df["Code"].astype(str)
     df["Close"] = df["Close"].replace("----", None).str.replace(",", "").astype(float)
     df["Change"] = df["Change"].replace("除權", None).replace("除息", None).replace("---", None).astype(float)
@@ -62,6 +64,8 @@ def post_process(df) -> pd.DataFrame:
     df["IssuedShares"] = df["IssuedShares"].str.replace(",", "").astype(float)
     df["NextDayUpLimitPrice"] = df["NextDayUpLimitPrice"].str.replace(",", "").astype(float)
     df["NextDayDownLimitPrice"] = df["NextDayDownLimitPrice"].str.replace(",", "").astype(float)
+
+    df = df[["Date"] + [col for col in df.columns if col != "Date"]]
     return df
 
 def fetch_tpex_data(date: str) -> dict:
@@ -108,7 +112,7 @@ def tpex_crawler(date: str) -> pd.DataFrame:
     """
     response = fetch_tpex_data(date)
     df = parse_tpex_data(response)
-    df = post_process(df)
+    df = post_process(df, date)
     return df
 
 
