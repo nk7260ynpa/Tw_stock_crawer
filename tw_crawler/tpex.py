@@ -1,5 +1,9 @@
+import logging
+
 import cloudscraper
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 def webzh2en_columns() -> dict[str, str]:
     """
@@ -70,13 +74,13 @@ def post_process(df, date) -> pd.DataFrame:
 
 def fetch_tpex_data(date: str) -> dict:
     """
-    Fetch data from the TPEx website for a given date.
+    Fetch data from the TPEX website for a given date.
 
     Args:
         date (str): The date in 'YYYY-MM-DD' format.
 
     Returns:
-        dict: The JSON response from the TPEx website.
+        dict: The JSON response from the TPEX website.
     """
     scraper = cloudscraper.create_scraper()
     url = "https://www.tpex.org.tw/www/zh-tw/afterTrading/otc"
@@ -87,10 +91,10 @@ def fetch_tpex_data(date: str) -> dict:
 
 def parse_tpex_data(response: dict) -> pd.DataFrame:
     """
-    Parse the JSON response from the TPEx website into a DataFrame.
+    Parse the JSON response from the TPEX website into a DataFrame.
 
     Args:
-        response (dict): The JSON response from the TPEx website.
+        response (dict): The JSON response from the TPEX website.
 
     Returns:
         pd.DataFrame: The parsed DataFrame.
@@ -102,7 +106,7 @@ def parse_tpex_data(response: dict) -> pd.DataFrame:
 
 def tpex_crawler(date: str) -> pd.DataFrame:
     """
-    Crawl the TPEx website for stock data on a given date and process it.
+    Crawl the TPEX website for stock data on a given date and process it.
 
     Args:
         date (str): The date in 'YYYY-MM-DD' format.
@@ -110,6 +114,7 @@ def tpex_crawler(date: str) -> pd.DataFrame:
     Returns:
         pd.DataFrame: The processed DataFrame containing stock data.
     """
+    logger.info(f"Starting Request data from TPEX")
     response = fetch_tpex_data(date)
     df = parse_tpex_data(response)
     df = post_process(df, date)
