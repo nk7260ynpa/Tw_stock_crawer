@@ -19,9 +19,9 @@ def webzh2en_columns() -> dict[str, str]:
         "開盤 ": "Open",
         "最高 ": "High",
         "最低": "Low",
-        "成交股數  ": "TradeVol(shares)",
-        " 成交金額(元)": "TradeAmt.(NTD)",
-        " 成交筆數 ": "No.ofTransactions",
+        "成交股數  ": "TradeVolume",
+        " 成交金額(元)": "TradeAmount",
+        " 成交筆數 ": "NumberOfTransactions",
         "最後買價": "LastBestBidPrice",
         "最後買量<br>(張數)": "LastBidVolume",
         "最後賣價": "LastBestAskPrice",
@@ -32,7 +32,7 @@ def webzh2en_columns() -> dict[str, str]:
     }
     return webzh2en_columns
 
-def post_process(df) -> pd.DataFrame:
+def post_process(df, date) -> pd.DataFrame:
     """
     將從tpex網站爬下來的資料表做專門的處理
 
@@ -46,22 +46,26 @@ def post_process(df) -> pd.DataFrame:
         >>> df = post_process(df)
     """
     df = df.rename(columns=webzh2en_columns())
+    df["Date"] = date
+    df["Date"] = pd.to_datetime(df["Date"])
     df["Code"] = df["Code"].astype(str)
     df["Close"] = df["Close"].replace("----", None).str.replace(",", "").astype(float)
     df["Change"] = df["Change"].replace("除權", None).replace("除息", None).replace("---", None).astype(float)
     df["Open"] = df["Open"].replace("----", None).str.replace(",", "").astype(float)
     df["High"] = df["High"].replace("----", None).str.replace(",", "").astype(float)
     df["Low"] = df["Low"].replace("----", None).str.replace(",", "").astype(float)
-    df["TradeVol(shares)"] = df["TradeVol(shares)"].str.replace(",", "").astype(float)
-    df["TradeAmt.(NTD)"] = df["TradeAmt.(NTD)"].str.replace(",", "").astype(float)
-    df["No.ofTransactions"] = df["No.ofTransactions"].str.replace(",", "").astype(int)
+    df["TradeVolume"] = df["TradeVolume"].str.replace(",", "").astype(int)
+    df["TradeAmount"] = df["TradeAmount"].str.replace(",", "").astype(int)
+    df["NumberOfTransactions"] = df["NumberOfTransactions"].str.replace(",", "").astype(int)
     df["LastBestBidPrice"] = df["LastBestBidPrice"].str.replace(",", "").astype(float)
-    df["LastBidVolume"] = df["LastBidVolume"].str.replace(",", "").astype(float)
+    df["LastBidVolume"] = df["LastBidVolume"].str.replace(",", "").astype(int)
     df["LastBestAskPrice"] = df["LastBestAskPrice"].str.replace(",", "").astype(float)
-    df["LastBestAskVolume"] = df["LastBestAskVolume"].str.replace(",", "").astype(float)
-    df["IssuedShares"] = df["IssuedShares"].str.replace(",", "").astype(float)
+    df["LastBestAskVolume"] = df["LastBestAskVolume"].str.replace(",", "").astype(int)
+    df["IssuedShares"] = df["IssuedShares"].str.replace(",", "").astype(int)
     df["NextDayUpLimitPrice"] = df["NextDayUpLimitPrice"].str.replace(",", "").astype(float)
     df["NextDayDownLimitPrice"] = df["NextDayDownLimitPrice"].str.replace(",", "").astype(float)
+
+    df = df[["Date"] + [col for col in df.columns if col != "Date"]]
     return df
 
 def fetch_tpex_data(date: str) -> dict:
@@ -108,7 +112,7 @@ def tpex_crawler(date: str) -> pd.DataFrame:
     """
     response = fetch_tpex_data(date)
     df = parse_tpex_data(response)
-    df = post_process(df)
+    df = post_process(df, date)
     return df
 
 
