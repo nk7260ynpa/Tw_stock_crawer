@@ -66,3 +66,8 @@ pytest
 ```bash
 pytest --cov-report term-missing --cov-config=.coveragerc --cov=./tw_crawler test/
 ```
+
+# CHANGELOG
+## 版本更新
+### 1.2.1
+- 加入logger功能，方便追蹤錯誤。
