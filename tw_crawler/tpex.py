@@ -19,9 +19,9 @@ def webzh2en_columns() -> dict[str, str]:
         "開盤 ": "Open",
         "最高 ": "High",
         "最低": "Low",
-        "成交股數  ": "TradeVol(shares)",
-        " 成交金額(元)": "TradeAmt.(NTD)",
-        " 成交筆數 ": "No.ofTransactions",
+        "成交股數  ": "TradeVolume",
+        " 成交金額(元)": "TradeAmount",
+        " 成交筆數 ": "NumberOfTransactions",
         "最後買價": "LastBestBidPrice",
         "最後買量<br>(張數)": "LastBidVolume",
         "最後賣價": "LastBestAskPrice",
@@ -54,9 +54,9 @@ def post_process(df, date) -> pd.DataFrame:
     df["Open"] = df["Open"].replace("----", None).str.replace(",", "").astype(float)
     df["High"] = df["High"].replace("----", None).str.replace(",", "").astype(float)
     df["Low"] = df["Low"].replace("----", None).str.replace(",", "").astype(float)
-    df["TradeVol(shares)"] = df["TradeVol(shares)"].str.replace(",", "").astype(int)
-    df["TradeAmt.(NTD)"] = df["TradeAmt.(NTD)"].str.replace(",", "").astype(int)
-    df["No.ofTransactions"] = df["No.ofTransactions"].str.replace(",", "").astype(int)
+    df["TradeVolume"] = df["TradeVolume"].str.replace(",", "").astype(int)
+    df["TradeAmount"] = df["TradeAmount"].str.replace(",", "").astype(int)
+    df["NumberOfTransactions"] = df["NumberOfTransactions"].str.replace(",", "").astype(int)
     df["LastBestBidPrice"] = df["LastBestBidPrice"].str.replace(",", "").astype(float)
     df["LastBidVolume"] = df["LastBidVolume"].str.replace(",", "").astype(int)
     df["LastBestAskPrice"] = df["LastBestAskPrice"].str.replace(",", "").astype(float)
