@@ -16,7 +16,7 @@ def webzh2en_columns() -> dict[str, str]:
     webzh2en_columns = {
         "交易日期": "Date",
         "契約": "Contract",
-        "到期月份(週別)": "ContractMonth(Week)",
+        "到期月份(週別)": "ContractMonth",
         "開盤價": "Open",
         "最高價": "High",
         "最低價": "Low",
@@ -52,7 +52,7 @@ def post_process(df) -> pd.DataFrame:
     df = df.rename(columns=webzh2en_columns())
     df["Date"] = pd.to_datetime(df["Date"], format="%Y/%m/%d")
     df["Contract"] = df["Contract"].astype(str)
-    df["ContractMonth(Week)"] = df["ContractMonth(Week)"].astype(str)
+    df["ContractMonth"] = df["ContractMonth"].astype(str)
     df["Open"] = df["Open"].replace("-", None).astype(float)
     df["High"] = df["High"].replace("-", None).astype(float)
     df["Low"] = df["Low"].replace("-", None).astype(float)
