@@ -106,9 +106,9 @@ def post_process(df, date) -> pd.DataFrame:
     df["Change"] = df["Change"].str.replace(",", "").str.replace("--", "0").astype(float)
     df["Change"] = df["Change"] * df["Dir"]
     df["LastBestBidPrice"] = df["LastBestBidPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["LastBestBidVolume"] = df["LastBestBidVolume"].str.replace(",", "").str.replace("--", "0").astype(int)
+    df["LastBestBidVolume"] = df["LastBestBidVolume"].str.replace("", "0").str.replace(",", "").str.replace("--", "0").astype(int)
     df["LastBestAskPrice"] = df["LastBestAskPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["LastBestAskVolume"] = df["LastBestAskVolume"].str.replace(",", "").str.replace("--", "0").astype(int)
+    df["LastBestAskVolume"] = df["LastBestAskVolume"].str.replace("", "0").str.replace(",", "").str.replace("--", "0").astype(int)
     df["PriceEarningratio"] = df["PriceEarningratio"].str.replace(",", "").astype(float)
 
     df = df.drop(columns=["Dir"])
