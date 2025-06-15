@@ -66,7 +66,7 @@ def post_process(df) -> pd.DataFrame:
     df["BestAsk"] = df["BestAsk"].replace("-", None).astype(float)
     df["HistoricalHigh"] = df["HistoricalHigh"].replace("-", None).astype(float)
     df["HistoricalLow"] = df["HistoricalLow"].replace("-", None).astype(float)
-    df["TradingHalt"] = df["TradingHalt"].replace("-", None).replace(" ", "").replace("是", True).replace("否", False)
+    df["TradingHalt"] = df["TradingHalt"].replace("-", None).replace("*", None).replace(" ", "").replace("", None).replace("是", 1.0).replace("否", 0.0).astype(float)
     df["TradingSession"] = df["TradingSession"].astype(str)
     df["SpreadOrderVolume"] = df["SpreadOrderVolume"].astype(float)
     return df
