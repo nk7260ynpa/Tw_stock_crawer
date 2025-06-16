@@ -8,7 +8,7 @@ def test_webzh2en_columns():
     expect = {
         "交易日期": "Date",
         "契約": "Contract",
-        "到期月份(週別)": "ContractMonth(Week)",
+        "到期月份(週別)": "ContractMonth",
         "開盤價": "Open",
         "最高價": "High",
         "最低價": "Low",
@@ -57,7 +57,7 @@ def test_post_process():
     expect = pd.DataFrame({
         "Date": [pd.Timestamp("2024-10-29")],
         "Contract": ["TX"],
-        "ContractMonth(Week)": ["202410"],
+        "ContractMonth": ["202410"],
         "Open": [10000.0],
         "High": [10100.0],
         "Low": [9900.0],
@@ -71,7 +71,7 @@ def test_post_process():
         "BestAsk": [10060.0],
         "HistoricalHigh": [11000.0],
         "HistoricalLow": [9000.0],
-        "TradingHalt": [False],
+        "TradingHalt": [0.0],
         "TradingSession": ["一般"],
         "SpreadOrderVolume": [100.0]
     })
@@ -125,7 +125,7 @@ def test_taifex_crawler(mocker):
     expect = pd.DataFrame({
         "Date": [pd.Timestamp("2024-10-29")],
         "Contract": ["TX"],
-        "ContractMonth(Week)": ["202410"],
+        "ContractMonth": ["202410"],
         "Open": [10000.0],
         "High": [10100.0],
         "Low": [9900.0],
@@ -139,7 +139,7 @@ def test_taifex_crawler(mocker):
         "BestAsk": [10060.0],
         "HistoricalHigh": [11000.0],
         "HistoricalLow": [9000.0],
-        "TradingHalt": [False],
+        "TradingHalt": [0.0],
         "TradingSession": ["一般"],
         "SpreadOrderVolume": [100.0]
     })
