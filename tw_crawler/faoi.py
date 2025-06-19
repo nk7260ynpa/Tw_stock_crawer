@@ -5,6 +5,42 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+def en_columns():
+    en_columns = [
+        "SecurityCode",
+        "TotalBuy",
+        "TotalSell",
+
+def zh2en_columns() -> dict[str, str]:
+    """
+    回傳一個中文欄位名稱對應到英文欄位名稱的字典
+
+    Returns:
+        dict: 中文欄位名稱對應到英文欄位名稱的字典
+    
+    Examples:
+        >>> zh2en_columns()
+    """
+
+    zh2en_columns = {
+        "證券代號": "SecurityCode",
+        "證券名稱": "StockName",
+        "成交股數": "TradeVolume",
+        "成交筆數": "Transaction",
+        "成交金額": "TradeValue",
+        "開盤價": "OpeningPrice",
+        "最高價": "HighestPrice",
+        "最低價": "LowestPrice",
+        "收盤價": "ClosingPrice",
+        "漲跌(+/-)": "Dir",
+        "漲跌價差": "Change",
+        "最後揭示買價": "LastBestBidPrice",
+        "最後揭示買量": "LastBestBidVolume",
+        "最後揭示賣價": "LastBestAskPrice",
+        "最後揭示賣量": "LastBestAskVolume",
+        "本益比": "PriceEarningratio"
+    }
+    return zh2en_columns
 
 def post_process(df, date) -> pd.DataFrame:
     df = df.rename(columns=zh2en_columns())
