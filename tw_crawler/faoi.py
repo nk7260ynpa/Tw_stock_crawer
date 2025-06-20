@@ -6,6 +6,15 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 def en_columns():
+    """
+    Return English columns for FAOI crawler
+
+    Returns:
+        list: English columns for FAOI crawler
+
+    Examples:
+        >>> en_columns()
+    """
     en_columns = [
         "SecurityCode",
         "StockName",
@@ -39,7 +48,6 @@ def zh2en_columns() -> dict[str, str]:
     Examples:
         >>> zh2en_columns()
     """
-
     zh2en_columns = {
         "證券代號": "SecurityCode",
         "證券名稱": "StockName",
@@ -105,17 +113,28 @@ def post_process(df, date) -> pd.DataFrame:
 
 def gen_empty_date_df():
     """
-    generate an empty DataFrame when TWSE is not open
+    generate an empty DataFrame when FAOI is not open
     
     Returns:
         pd.DataFrame: an empty DataFrame with the correct columns
     """
     df = pd.DataFrame(columns=en_columns())
     df.insert(0, "Date", pd.NaT)
-    df = df.drop(columns=["Dir"])
     return df
 
 def parse_faoi_data(response, date):
+    """
+    Parse the JSON response from the FAOI website into a DataFrame.
+
+    Args:
+        data (dict): The JSON response from the FAOI website.
+
+    Returns:
+        pd.DataFrame: The parsed DataFrame.
+
+    Examples:
+        >>> parse_faoi_data(data)
+    """
     if response["stat"] == "OK":
         df = pd.DataFrame(columns=response["fields"], data=response["data"])
         df = post_process(df, date)
@@ -124,11 +143,35 @@ def parse_faoi_data(response, date):
     return df
 
 def fetch_faoi_data(date):
+    """
+    Crawl the FAOI website for stock data on a given date and process it.
+
+    Args:
+        date (str): The date in 'YYYY-MM-DD' format.
+
+    Returns:
+        pd.DataFrame: The processed DataFrame containing stock data.
+
+    Examples:
+        >>> faoi_crawler("2022-02-18")
+    """
     url = f'https://www.twse.com.tw/rwd/zh/fund/T86?date={date.replace("-", "")}&selectType=ALL&response=json'
     response = requests.get(url)
     return response.json()
 
 def faoi_crawler(date):
+    """
+    Crawl the FAOI website for stock data on a given date and process it.
+
+    Args:
+        date (str): The date in 'YYYY-MM-DD' format.
+
+    Returns:
+        pd.DataFrame: The processed DataFrame containing stock data.
+
+    Examples:
+        >>> faoi_crawler("2022-02-18")
+    """
     logger.info(f"Starting Request data from Foreign and Other Investors")
     response = fetch_faoi_data(date)
     df = parse_faoi_data(response, date)
