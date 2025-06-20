@@ -8,8 +8,28 @@ logger = logging.getLogger(__name__)
 def en_columns():
     en_columns = [
         "SecurityCode",
-        "TotalBuy",
-        "TotalSell",
+        "ForeignInvestorsTotalBuy",
+        "ForeignInvestorsTotalSell",
+        "ForeignInvestorsDifference",
+        "ForeignDealersTotalBuy",
+        "ForeignDealersTotalSell",
+        "ForeignDealersDifference",
+        "SecuritiesInvestmentTotalBuy",
+        "SecuritiesInvestmentTotalSell",
+        "SecuritiesInvestmentDifference",
+        "Dealers Difference",
+        "DealersProprietaryTotalBuy",
+        "DealersProprietaryTotalSell",
+        "DealersProprietaryDifference",
+        "DealersHedgeTotalBuy",
+        "DealersHedgeTotalSell",
+        "DealersHedgeDifference",
+        "Total Difference"
+    ]
+    return en_columns
+
+        
+
 
 def zh2en_columns() -> dict[str, str]:
     """
