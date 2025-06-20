@@ -28,9 +28,6 @@ def en_columns():
     ]
     return en_columns
 
-        
-
-
 def zh2en_columns() -> dict[str, str]:
     """
     回傳一個中文欄位名稱對應到英文欄位名稱的字典
@@ -44,21 +41,23 @@ def zh2en_columns() -> dict[str, str]:
 
     zh2en_columns = {
         "證券代號": "SecurityCode",
-        "證券名稱": "StockName",
-        "成交股數": "TradeVolume",
-        "成交筆數": "Transaction",
-        "成交金額": "TradeValue",
-        "開盤價": "OpeningPrice",
-        "最高價": "HighestPrice",
-        "最低價": "LowestPrice",
-        "收盤價": "ClosingPrice",
-        "漲跌(+/-)": "Dir",
-        "漲跌價差": "Change",
-        "最後揭示買價": "LastBestBidPrice",
-        "最後揭示買量": "LastBestBidVolume",
-        "最後揭示賣價": "LastBestAskPrice",
-        "最後揭示賣量": "LastBestAskVolume",
-        "本益比": "PriceEarningratio"
+        "外陸資買進股數(不含外資自營商)": "ForeignInvestorsTotalBuy",
+        "外陸資賣出股數(不含外資自營商)": "ForeignInvestorsTotalSell",
+        "外陸資買賣超股數(不含外資自營商)": "ForeignInvestorsDifference",
+        "外資自營商買進股數": "ForeignDealersTotalBuy",
+        "外資自營商賣出股數": "ForeignDealersTotalSell",
+        "外資自營商買賣超股數": "ForeignDealersDifference",
+        "投信買進股數": "SecuritiesInvestmentTotalBuy",
+        "投信賣出股數": "SecuritiesInvestmentTotalSell",
+        "投信買賣超股數": "SecuritiesInvestmentDifference",
+        "自營商買賣超股數": "Dealers Difference",
+        "自營商買進股數(自行買賣)": "DealersProprietaryTotalBuy",
+        "自營商賣出股數(自行買賣)": "DealersProprietaryTotalSell",
+        "自營商買賣超股數(自行買賣)": "DealersProprietaryDifference",
+        "自營商買進股數(避險)": "DealersHedgeTotalBuy",
+        "自營商賣出股數(避險)": "DealersHedgeTotalSell",
+        "自營商買賣超股數(避險)": "DealersHedgeDifference",
+        "三大法人買賣超股數": "Total Difference"
     }
     return zh2en_columns
 
