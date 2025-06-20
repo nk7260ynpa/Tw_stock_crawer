@@ -90,7 +90,7 @@ def test_post_process():
         "ForeignInvestorsDifference": [500],
         "ForeignDealersTotalBuy": [200],
         "ForeignDealersTotalSell": [100],
-        "ForeignDealersDifference": [100022],
+        "ForeignDealersDifference": [1000022],
         "SecuritiesInvestmentTotalBuy": [300],
         "SecuritiesInvestmentTotalSell": [150],
         "SecuritiesInvestmentDifference": [150],
@@ -136,32 +136,32 @@ def test_fetch_faoi_data(mocker):
         "data": ["2330", "台積電", "1,000", "500", "500", "200", "100", "100022", "300", "150", "150", "50", "400", "2,010,000", "200", "100", "50", "50", "800"]
     }
     mocker.patch('tw_crawler.faoi.requests.get', return_value=mocker.Mock(json=lambda: mock_response))
-    result = faoi.fetch_twse_data("2022-02-18")
+    result = faoi.fetch_faoi_data("2022-02-18")
     assert result == mock_response
 
 def test_parse_faoi_data():
     response = {
         "stat": "OK",
-        "fields": ['證券代號',
-                   '證券名稱',
-                '外陸資買進股數(不含外資自營商)',
-                '外陸資賣出股數(不含外資自營商)',
-                '外陸資買賣超股數(不含外資自營商)',
-                '外資自營商買進股數',
-                '外資自營商賣出股數',
-                '外資自營商買賣超股數',
-                '投信買進股數',
-                '投信賣出股數',
-                '投信買賣超股數',
-                '自營商買賣超股數',
-                '自營商買進股數(自行買賣)',
-                '自營商賣出股數(自行買賣)',
-                '自營商買賣超股數(自行買賣)',
-                '自營商買進股數(避險)',
-                '自營商賣出股數(避險)',
-                '自營商買賣超股數(避險)',
-                '三大法人買賣超股數'],
-        "data": ["2330", "台積電", "1,000", "500", "500", "200", "100", "100022", "300", "150", "150", "50", "400", "2,010,000", "200", "100", "50", "50", "800"]
+        "fields": [ '證券代號',
+                    '證券名稱',
+                    '外陸資買進股數(不含外資自營商)',
+                    '外陸資賣出股數(不含外資自營商)',
+                    '外陸資買賣超股數(不含外資自營商)',
+                    '外資自營商買進股數',
+                    '外資自營商賣出股數',
+                    '外資自營商買賣超股數',
+                    '投信買進股數',
+                    '投信賣出股數',
+                    '投信買賣超股數',
+                    '自營商買賣超股數',
+                    '自營商買進股數(自行買賣)',
+                    '自營商賣出股數(自行買賣)',
+                    '自營商買賣超股數(自行買賣)',
+                    '自營商買進股數(避險)',
+                    '自營商賣出股數(避險)',
+                    '自營商買賣超股數(避險)',
+                    '三大法人買賣超股數'],
+        "data": [["2330", "台積電", "1,000", "500", "500", "200", "100", "100022", "300", "150", "150", "50", "400", "2,010,000", "200", "100", "50", "50", "800"]]
     }
     date = "2022-02-18"
     result = faoi.parse_faoi_data(response, date)
@@ -217,9 +217,9 @@ def test_faoi_crawler(mocker):
                 '自營商賣出股數(避險)',
                 '自營商買賣超股數(避險)',
                 '三大法人買賣超股數'],
-        "data": ["2330", "台積電", "1,000", "500", "500", "200", "100", "100022", "300", "150", "150", "50", "400", "2,010,000", "200", "100", "50", "50", "800"]
+        "data": [["2330", "台積電", "1,000", "500", "500", "200", "100", "100022", "300", "150", "150", "50", "400", "2,010,000", "200", "100", "50", "50", "800"]]
     }
-    mocker.patch('tw_crawler.faoi.fetch_twse_data', return_value=mock_response)
+    mocker.patch('tw_crawler.faoi.fetch_faoi_data', return_value=mock_response)
     result = faoi.faoi_crawler("2024-10-29")
     assert not result.empty
     expect = pd.DataFrame({

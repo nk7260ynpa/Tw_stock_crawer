@@ -60,14 +60,14 @@ def zh2en_columns() -> dict[str, str]:
         "投信買進股數": "SecuritiesInvestmentTotalBuy",
         "投信賣出股數": "SecuritiesInvestmentTotalSell",
         "投信買賣超股數": "SecuritiesInvestmentDifference",
-        "自營商買賣超股數": "Dealers Difference",
+        "自營商買賣超股數": "DealersDifference",
         "自營商買進股數(自行買賣)": "DealersProprietaryTotalBuy",
         "自營商賣出股數(自行買賣)": "DealersProprietaryTotalSell",
         "自營商買賣超股數(自行買賣)": "DealersProprietaryDifference",
         "自營商買進股數(避險)": "DealersHedgeTotalBuy",
         "自營商賣出股數(避險)": "DealersHedgeTotalSell",
         "自營商買賣超股數(避險)": "DealersHedgeDifference",
-        "三大法人買賣超股數": "Total Difference"
+        "三大法人買賣超股數": "TotalDifference"
     }
     return zh2en_columns
 
@@ -99,14 +99,14 @@ def post_process(df, date) -> pd.DataFrame:
     df["SecuritiesInvestmentTotalBuy"] = df["SecuritiesInvestmentTotalBuy"].map(remove_comma).astype(int)
     df["SecuritiesInvestmentTotalSell"] = df["SecuritiesInvestmentTotalSell"].map(remove_comma).astype(int)
     df["SecuritiesInvestmentDifference"] = df["SecuritiesInvestmentDifference"].map(remove_comma).astype(int)
-    df["Dealers Difference"] = df["Dealers Difference"].map(remove_comma).astype(int)
+    df["DealersDifference"] = df["DealersDifference"].map(remove_comma).astype(int)
     df["DealersProprietaryTotalBuy"] = df["DealersProprietaryTotalBuy"].map(remove_comma).astype(int)
     df["DealersProprietaryTotalSell"] = df["DealersProprietaryTotalSell"].map(remove_comma).astype(int)
     df["DealersProprietaryDifference"] = df["DealersProprietaryDifference"].map(remove_comma).astype(int)
     df["DealersHedgeTotalBuy"] = df["DealersHedgeTotalBuy"].fillna(0).map(remove_comma).astype(int)
     df["DealersHedgeTotalSell"] = df["DealersHedgeTotalSell"].fillna(0).map(remove_comma).astype(int)
     df["DealersHedgeDifference"] = df["DealersHedgeDifference"].fillna(0).map(remove_comma).astype(int)
-    df["Total Difference"] = df["Total Difference"].map(remove_comma).astype(int)
+    df["TotalDifference"] = df["TotalDifference"].map(remove_comma).astype(int)
 
     df = df[["Date"] + [col for col in df.columns if col != "Date"]]
     return df
