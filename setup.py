@@ -5,7 +5,7 @@ long_description_content_type='text/markdown'
 
 setup(
     name='tw_crawler',
-    version='v1.2.5',
+    version='v1.3.0',
     description='A crawler for Taiwan stock market data',
     long_description=long_description,
     long_description_content_type=long_description_content_type,
