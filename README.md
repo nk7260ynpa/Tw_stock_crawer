@@ -32,6 +32,9 @@ df_tpex = tw_crawler.tpex_crawler("2024-10-15")
 
 # 抓取當日興櫃股票資料
 df_taifex = tw_crawler.taifex_crawler("2024-10-15")
+
+# 抓取當日三大法人資料
+df_faoi = tw_crawler.faoi_crawler("2024-10-15")
 ```
 
 ## 使用-2
@@ -69,5 +72,7 @@ pytest --cov-report term-missing --cov-config=.coveragerc --cov=./tw_crawler tes
 
 # CHANGELOG
 ## 版本更新
-### 1.2.1
+### v1.3.0
+- 加入三大法人爬蟲
+### v1.2.1
 - 加入logger功能，方便追蹤錯誤。
