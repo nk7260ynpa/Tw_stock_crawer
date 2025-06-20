@@ -17,14 +17,14 @@ def en_columns():
         "SecuritiesInvestmentTotalBuy",
         "SecuritiesInvestmentTotalSell",
         "SecuritiesInvestmentDifference",
-        "Dealers Difference",
+        "DealersDifference",
         "DealersProprietaryTotalBuy",
         "DealersProprietaryTotalSell",
         "DealersProprietaryDifference",
         "DealersHedgeTotalBuy",
         "DealersHedgeTotalSell",
         "DealersHedgeDifference",
-        "Total Difference"
+        "TotalDifference"
     ]
     return en_columns
 
@@ -61,27 +61,43 @@ def zh2en_columns() -> dict[str, str]:
     }
     return zh2en_columns
 
+def remove_comma() -> str:
+    """
+    Remove comma from a string.
+
+    Args:
+        x (str): a string with commas
+
+    Returns:
+        str: the string with commas removed
+
+    Examples:
+        >>> remove_comma("1,234")
+    """
+    return x.replace(",", "")
+
 def post_process(df, date) -> pd.DataFrame:
     df = df.rename(columns=zh2en_columns())
     df["Date"] = date
     df["Date"] = pd.to_datetime(df["Date"])
-    df["TradeVolume"] = df["TradeVolume"].map(remove_comma).astype(int)
-    df["Transaction"] = df["Transaction"].map(remove_comma).astype(int)
-    df["TradeValue"] = df["TradeValue"].map(remove_comma).astype(int)
-    df["OpeningPrice"] = df["OpeningPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["HighestPrice"] = df["HighestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["LowestPrice"] = df["LowestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["ClosingPrice"] = df["ClosingPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["Dir"] = df["Dir"].map(html2signal()).astype(float)
-    df["Change"] = df["Change"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["Change"] = df["Change"] * df["Dir"]
-    df["LastBestBidPrice"] = df["LastBestBidPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["LastBestBidVolume"] = df["LastBestBidVolume"].map(lambda x: {"": "0"}.get(x, x)).str.replace(",", "").str.replace("--", "0").astype(int)
-    df["LastBestAskPrice"] = df["LastBestAskPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["LastBestAskVolume"] = df["LastBestAskVolume"].map(lambda x: {"": "0"}.get(x, x)).str.replace(",", "").str.replace("--", "0").astype(int)
-    df["PriceEarningratio"] = df["PriceEarningratio"].str.replace(",", "").astype(float)
+    df["ForeignInvestorsTotalBuy"] = df["ForeignInvestorsTotalBuy"].map(remove_comma).astype(int)
+    df["ForeignInvestorsTotalSell"] = df["ForeignInvestorsTotalSell"].map(remove_comma).astype(int)
+    df["ForeignInvestorsDifference"] = df["ForeignInvestorsDifference"].map(remove_comma).astype(int)
+    df["ForeignDealersTotalBuy"] = df["ForeignDealersTotalBuy"].map(remove_comma).astype(int)
+    df["ForeignDealersTotalSell"] = df["ForeignDealersTotalSell"].map(remove_comma).astype(int)
+    df["ForeignDealersDifference"] = df["ForeignDealersDifference"].map(remove_comma).astype(int)
+    df["SecuritiesInvestmentTotalBuy"] = df["SecuritiesInvestmentTotalBuy"].map(remove_comma).astype(int)
+    df["SecuritiesInvestmentTotalSell"] = df["SecuritiesInvestmentTotalSell"].map(remove_comma).astype(int)
+    df["SecuritiesInvestmentDifference"] = df["SecuritiesInvestmentDifference"].map(remove_comma).astype(int)
+    df["Dealers Difference"] = df["Dealers Difference"].map(remove_comma).astype(int)
+    df["DealersProprietaryTotalBuy"] = df["DealersProprietaryTotalBuy"].map(remove_comma).astype(int)
+    df["DealersProprietaryTotalSell"] = df["DealersProprietaryTotalSell"].map(remove_comma).astype(int)
+    df["DealersProprietaryDifference"] = df["DealersProprietaryDifference"].map(remove_comma).astype(int)
+    df["DealersHedgeTotalBuy"] = df["DealersHedgeTotalBuy"].map(remove_comma).astype(int)
+    df["DealersHedgeTotalSell"] = df["DealersHedgeTotalSell"].map(remove_comma).astype(int)
+    df["DealersHedgeDifference"] = df["DealersHedgeDifference"].map(remove_comma).astype(int)
+    df["Total Difference"] = df["Total Difference"].map(remove_comma).astype(int)
 
-    df = df.drop(columns=["Dir"])
     df = df[["Date"] + [col for col in df.columns if col != "Date"]]
     return df
 
