@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 def en_columns():
     en_columns = [
         "SecurityCode",
+        "StockName",
         "ForeignInvestorsTotalBuy",
         "ForeignInvestorsTotalSell",
         "ForeignInvestorsDifference",
@@ -41,6 +42,7 @@ def zh2en_columns() -> dict[str, str]:
 
     zh2en_columns = {
         "證券代號": "SecurityCode",
+        "證券名稱": "StockName",
         "外陸資買進股數(不含外資自營商)": "ForeignInvestorsTotalBuy",
         "外陸資賣出股數(不含外資自營商)": "ForeignInvestorsTotalSell",
         "外陸資買賣超股數(不含外資自營商)": "ForeignInvestorsDifference",
@@ -61,7 +63,7 @@ def zh2en_columns() -> dict[str, str]:
     }
     return zh2en_columns
 
-def remove_comma() -> str:
+def remove_comma(x):
     """
     Remove comma from a string.
 
