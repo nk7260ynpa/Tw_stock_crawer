@@ -103,9 +103,9 @@ def post_process(df, date) -> pd.DataFrame:
     df["DealersProprietaryTotalBuy"] = df["DealersProprietaryTotalBuy"].map(remove_comma).astype(int)
     df["DealersProprietaryTotalSell"] = df["DealersProprietaryTotalSell"].map(remove_comma).astype(int)
     df["DealersProprietaryDifference"] = df["DealersProprietaryDifference"].map(remove_comma).astype(int)
-    df["DealersHedgeTotalBuy"] = df["DealersHedgeTotalBuy"].fillna(0).map(remove_comma).astype(int)
-    df["DealersHedgeTotalSell"] = df["DealersHedgeTotalSell"].fillna(0).map(remove_comma).astype(int)
-    df["DealersHedgeDifference"] = df["DealersHedgeDifference"].fillna(0).map(remove_comma).astype(int)
+    df["DealersHedgeTotalBuy"] = df["DealersHedgeTotalBuy"].astype(object).fillna("0").astype(str).map(remove_comma).astype(float).astype(int)
+    df["DealersHedgeTotalSell"] = df["DealersHedgeTotalSell"].astype(object).fillna("0").astype(str).map(remove_comma).astype(float).astype(int)
+    df["DealersHedgeDifference"] = df["DealersHedgeDifference"].astype(object).fillna("0").astype(str).map(remove_comma).astype(float).astype(int)
     df["TotalDifference"] = df["TotalDifference"].map(remove_comma).astype(int)
 
     df = df[["Date"] + [col for col in df.columns if col != "Date"]]
