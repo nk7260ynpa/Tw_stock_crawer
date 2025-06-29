@@ -35,6 +35,73 @@ def en_columns():
     ]
     return en_columns
 
+def zh2en_columns() -> dict[str, str]:
+    """
+    回傳一個中文欄位名稱對應到英文欄位名稱的字典
+
+    Returns:
+        dict: 中文欄位名稱對應到英文欄位名稱的字典
+    
+    Examples:
+        >>> zh2en_columns()
+    """
+    zh2en_columns = {
+        "日期": "Date",
+        "代號": "SecurityCode",
+        "融資買進": "MarginPurchase",
+        "融資賣出": "MarginSales",
+        "融資現金償還": "CashRedemption",
+        "融資前日餘額": "MarginPurchaseBalanceOfPreviousDay",
+        "融資當日餘額": "MarginPurchaseBalanceOfTheDay",
+        "融資隔日限額": "MarginPurchaseQuotaForTheNextDay",
+        "融券買進": "ShortCovering",
+        "融券賣出": "ShortSale",
+        "融券現券償還": "StockRedemption",
+        "融券前日餘額": "ShortSaleBalanceOfPreviousDay",
+        "融券當日餘額": "ShortSaleBalanceOfTheDay",
+        "融券隔日限額": "ShortSaleQuotaForTheNextDay",
+        "資券互抵": "OffsettingOfMarginPurchasesAndShortSales",
+        "註記": "Note"
+    }
+    return zh2en_columns
+
+def remove_comma(x):
+    """
+    Remove comma from a string.
+
+    Args:
+        x (str): a string with commas
+
+    Returns:
+        str: the string with commas removed
+
+    Examples:
+        >>> remove_comma("1,234")
+    """
+    return x.replace(",", "")
+
+def post_process(df, date):
+    df.columns = en_columns()
+    df["Date"] = date
+    df["Date"] = pd.to_datetime(df["Date"])
+    df["MarginPurchase"] = df["MarginPurchase"].map(remove_comma).astype(int)
+    df["MarginSales"] = df["MarginSales"].map(remove_comma).astype(int)
+    df["CashRedemption"] = df["CashRedemption"].map(remove_comma).astype(int)
+    df["MarginPurchaseBalanceOfPreviousDay"] = df["MarginPurchaseBalanceOfPreviousDay"].map(remove_comma).astype(int)
+    df["MarginPurchaseBalanceOfTheDay"] = df["MarginPurchaseBalanceOfTheDay"].map(remove_comma).astype(int)
+    df["MarginPurchaseQuotaForTheNextDay"] = df["MarginPurchaseQuotaForTheNextDay"].map(remove_comma).astype(int)
+    df["ShortCovering"] = df["ShortCovering"].map(remove_comma).astype(int)
+    df["ShortSale"] = df["ShortSale"].map(remove_comma).astype(int)
+    df["StockRedemption"] = df["StockRedemption"].map(remove_comma).astype(int)
+    df["ShortSaleBalanceOfPreviousDay"] = df["ShortSaleBalanceOfPreviousDay"].map(remove_comma).astype(int)
+    df["ShortSaleBalanceOfTheDay"] = df["ShortSaleBalanceOfTheDay"].map(remove_comma).astype(int)
+    df["ShortSaleQuotaForTheNextDay"] = df["ShortSaleQuotaForTheNextDay"].map(remove_comma).astype(int)
+    df["OffsettingOfMarginPurchasesAndShortSales"] = df["OffsettingOfMarginPurchasesAndShortSales"].map(remove_comma).astype(int)
+    df["Note"] = df["Note"].astype(str)
+
+    df = df[["Date"] + [col for col in df.columns if col != "Date"]]
+    return df
+
 def gen_empty_date_df():
     """
     generate an empty DataFrame when MGTS is not open
