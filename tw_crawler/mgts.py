@@ -5,6 +5,36 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+def en_columns():
+    """
+    Return English columns for MGTS crawler
+
+    Returns:
+        list: English columns for MGTS crawler
+
+    Examples:
+        >>> en_columns()
+    """
+    en_columns = [
+        "Date",
+        "SecurityCode",
+        "MarginPurchase",
+        "MarginSales",
+        "CashRedemption",
+        "MarginPurchaseBalanceOfPreviousDay",
+        "MarginPurchaseBalanceOfTheDay",
+        "MarginPurchaseQuotaForTheNextDay",
+        "ShortCovering",
+        "ShortSale",
+        "StockRedemption",
+        "ShortSaleBalanceOfPreviousDay",
+        "ShortSaleBalanceOfTheDay",
+        "ShortSaleQuotaForTheNextDay",
+        "OffsettingOfMarginPurchasesAndShortSales",
+        "Note"
+    ]
+    return en_columns
+
 def gen_empty_date_df():
     """
     generate an empty DataFrame when MGTS is not open
