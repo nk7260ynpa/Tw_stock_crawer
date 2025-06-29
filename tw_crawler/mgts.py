@@ -5,6 +5,17 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+def gen_empty_date_df():
+    """
+    generate an empty DataFrame when MGTS is not open
+    
+    Returns:
+        pd.DataFrame: an empty DataFrame with the correct columns
+    """
+    df = pd.DataFrame(columns=en_columns())
+    df.insert(0, "Date", pd.NaT)
+    return df
+
 def parse_mgts_data(response, date):
     """
     Parse the JSON response from the MGTS website into a DataFrame.
