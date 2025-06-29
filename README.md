@@ -33,6 +33,9 @@ df_tpex = tw_crawler.tpex_crawler("2024-10-15")
 # 抓取當日興櫃股票資料
 df_taifex = tw_crawler.taifex_crawler("2024-10-15")
 
+# 抓取當日融資融券資料
+df_mgts = tw_crawler.mgts_crawler("2024-10-15")
+
 # 抓取當日三大法人資料
 df_faoi = tw_crawler.faoi_crawler("2024-10-15")
 ```
@@ -72,6 +75,8 @@ pytest --cov-report term-missing --cov-config=.coveragerc --cov=./tw_crawler tes
 
 # CHANGELOG
 ## 版本更新
+### v1.4.0
+- 加入融資融券爬蟲
 ### v1.3.0
 - 加入三大法人爬蟲
 ### v1.2.1
