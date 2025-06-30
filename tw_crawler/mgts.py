@@ -17,6 +17,7 @@ def en_columns():
     """
     en_columns = [
         "SecurityCode",
+        "StockName",
         "MarginPurchase",
         "MarginSales",
         "CashRedemption",
@@ -80,7 +81,7 @@ def remove_comma(x):
     return x.replace(",", "")
 
 def post_process(df, date):
-    df.columns = ["Date"] + en_columns()
+    df.columns = en_columns()
     df["Date"] = date
     df["Date"] = pd.to_datetime(df["Date"])
     df["MarginPurchase"] = df["MarginPurchase"].map(remove_comma).astype(int)
