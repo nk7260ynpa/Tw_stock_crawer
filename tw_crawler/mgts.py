@@ -48,6 +48,7 @@ def zh2en_columns() -> dict[str, str]:
     zh2en_columns = {
         "日期": "Date",
         "代號": "SecurityCode",
+        "名稱": "StockName",
         "融資買進": "MarginPurchase",
         "融資賣出": "MarginSales",
         "融資現金償還": "CashRedemption",
