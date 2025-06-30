@@ -75,6 +75,8 @@ pytest --cov-report term-missing --cov-config=.coveragerc --cov=./tw_crawler tes
 
 # CHANGELOG
 ## 版本更新
+### v1.4.1
+- 修正融資融券爬蟲錯誤。
 ### v1.4.0
 - 加入融資融券爬蟲
 ### v1.3.0
