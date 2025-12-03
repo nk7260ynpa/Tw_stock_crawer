@@ -32,4 +32,6 @@ jobs:
         context: .                      # 建構上下文（專案根目錄）
         file: docker/Dockerfile         # 指定 Dockerfile 路徑
         push: true
-        tags: nk7260ynpa/tw_stocker_crawler:${{ env.VERSION }}
+        tags: |
+          nk7260ynpa/tw_stocker_crawler:${{ env.VERSION }}
+          nk7260ynpa/tw_stocker_crawler:latest
