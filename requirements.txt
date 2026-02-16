@@ -1,5 +1,0 @@
-cloudscraper==1.2.71
-setuptools==80.9.0
-pandas==2.3.1
-fastapi==0.116.1
-uvicorn==0.35.0
