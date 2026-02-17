@@ -3,10 +3,10 @@
 提供台灣證券交易所(TWSE)每日上市股票資料爬取與處理功能。
 """
 
-import requests
 import logging
 
 import pandas as pd
+import requests
 
 logger = logging.getLogger(__name__)
 

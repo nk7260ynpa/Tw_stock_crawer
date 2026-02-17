@@ -3,10 +3,10 @@
 提供台灣三大法人(外資、投信、自營商)每日買賣超資料爬取與處理功能。
 """
 
-import requests
 import logging
 
 import pandas as pd
+import requests
 
 logger = logging.getLogger(__name__)
 

@@ -3,10 +3,11 @@
 提供台灣期貨交易所(TAIFEX)每日期貨資料爬取與處理功能。
 """
 
+import io
+
 import cloudscraper
 import numpy as np
 import pandas as pd
-import io
 
 def webzh2en_columns() -> dict[str, str]:
     """
