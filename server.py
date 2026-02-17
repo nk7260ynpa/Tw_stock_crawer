@@ -8,6 +8,7 @@ import datetime
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from logging.handlers import TimedRotatingFileHandler
 
 from fastapi import FastAPI
 
@@ -19,7 +20,15 @@ os.makedirs(LOG_DIR, exist_ok=True)
 log_formatter = logging.Formatter(
     "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-log_handler = logging.FileHandler(os.path.join(LOG_DIR, "crawler.log"))
+log_handler = TimedRotatingFileHandler(
+    os.path.join(LOG_DIR, "crawler.log"),
+    when="midnight",
+    backupCount=30,
+)
+log_handler.suffix = "%Y-%m-%d"
+log_handler.namer = lambda name: name.replace(
+    "crawler.log.", "crawler."
+) + ".log"
 log_handler.setFormatter(log_formatter)
 
 logger = logging.getLogger(__name__)
