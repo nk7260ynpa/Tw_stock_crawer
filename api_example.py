@@ -4,10 +4,11 @@
 """
 
 import json
+import os
 
 import requests
 
-BASE_URL = "http://127.0.0.1:6738"
+BASE_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:6738")
 
 
 def show_response(name: str, url: str) -> None:

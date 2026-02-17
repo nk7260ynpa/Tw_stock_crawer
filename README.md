@@ -1,85 +1,137 @@
-# Tw_stock_crawer(台灣股市爬蟲)
+# Tw_stock_crawer（台灣股市爬蟲）
 ![](https://img.shields.io/static/v1?label=python&message=3.8>=&color=blue)
 [![](https://img.shields.io/static/v1?label=license&message=MIT&color=green)](./License.txt)
 
+## 功能
+
+提供台灣股市資料爬取功能，包含：
+
+| 模組 | 說明 |
+|------|------|
+| TWSE | 上市股票 |
+| TPEX | 上櫃股票 |
+| TAIFEX | 期貨 |
+| FAOI | 三大法人買賣超 |
+| MGTS | 融資融券 |
+
 ## 安裝
 
-### 直接使用安裝套件
+### 直接安裝套件
 ```bash
 pip install -r requirements.txt
 python setup.py install
 ```
 
-### 使用docker環境
+### 使用 Docker 環境
 ```bash
-docker run --rm -it  nk7260ynpa/tw_stocker_crawler  bash
+bash docker/build.sh
 ```
 
-## 使用-1
+## 使用方式
 
-輸入日期，即可自動抓取當日上市、上櫃、興櫃的股票資料。日期格式為 `YYYY-MM-DD`。
+### 方式一：Python 套件
 
-以下為範例：
+輸入日期，即可自動抓取當日股票資料。日期格式為 `YYYY-MM-DD`。
 
 ```python
 import tw_crawler
 
-# 抓取當日上市股票資料
+# 上市股票
 df_twse = tw_crawler.twse_crawler("2024-10-15")
 
-# 抓取當日上櫃股票資料
+# 上櫃股票
 df_tpex = tw_crawler.tpex_crawler("2024-10-15")
 
-# 抓取當日興櫃股票資料
+# 期貨
 df_taifex = tw_crawler.taifex_crawler("2024-10-15")
 
-# 抓取當日融資融券資料
-df_mgts = tw_crawler.mgts_crawler("2024-10-15")
-
-# 抓取當日三大法人資料
+# 三大法人
 df_faoi = tw_crawler.faoi_crawler("2024-10-15")
+
+# 融資融券
+df_mgts = tw_crawler.mgts_crawler("2024-10-15")
 ```
 
-## 使用-2
-1. 啟動Fastapi server，並提供API接口。
+### 方式二：FastAPI Server
+
+啟動 Docker container：
 
 ```bash
-docker run -d --name tw_stocker_crawler -p 6738:6738 --rm nk7260ynpa/tw_stocker_crawler:latest
+bash run.sh
 ```
-2. 使用curl或Postman等工具，向API發送請求。
+
+Server 預設運行於 `http://127.0.0.1:6738/`。
+
+#### API Endpoints
+
+| Endpoint | 說明 |
+|----------|------|
+| `GET /` | 並行爬取所有資料 |
+| `GET /twse` | 上市股票 |
+| `GET /tpex` | 上櫃股票 |
+| `GET /taifex` | 期貨 |
+| `GET /faoi` | 三大法人 |
+| `GET /mgts` | 融資融券 |
+
+所有 endpoint 皆支援 `?date=YYYY-MM-DD` 參數，不帶參數則預設為當天。
+
+#### 請求範例
+
 ```python
 import requests
-import pandas as pd
 
-name = "twse"
-date = "2025-05-28"
+# 爬取指定日期的上市股票資料
+response = requests.get("http://127.0.0.1:6738/twse?date=2024-10-15")
+data = response.json()
 
-url = "http://127.0.0.1:6738"
-payload = {"name": name, "date": date}
+# 爬取當天所有資料
+response = requests.get("http://127.0.0.1:6738/")
+data = response.json()
+```
 
-response = requests.post(url, params=payload)
-df = pd.DataFrame(response.json()["data"])
+#### API 測試腳本
 
-print(df.head(2))
+在 Docker 內執行範例腳本，測試所有 endpoint：
+
+```bash
+bash run_example.sh
 ```
 
 ## 測試
-普通測試
+
+在 Docker 中執行測試：
 ```bash
-pytest
-```
-包含覆蓋率的測試
-```bash
-pytest --cov-report term-missing --cov-config=.coveragerc --cov=./tw_crawler test/
+docker run --rm nk7260ynpa/tw_stocker_crawler:latest pytest test/ -v
 ```
 
-# CHANGELOG
-## 版本更新
+包含覆蓋率：
+```bash
+docker run --rm nk7260ynpa/tw_stocker_crawler:latest pytest --cov-report term-missing --cov-config=.coveragerc --cov=./tw_crawler test/
+```
+
+## Log
+
+Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）：
+- 當天：`logs/crawler.log`
+- 歷史：`logs/crawler.YYYY-MM-DD.log`
+
+## CHANGELOG
+
+### v2.0.0
+- 新增 FastAPI Server，提供 REST API 介面
+- 新增各爬蟲獨立 endpoint（/twse, /tpex, /taifex, /faoi, /mgts）
+- 支援 date 查詢參數指定日期
+- Log 按日期自動輪替儲存
+- Docker 掛載 logs 資料夾
+
 ### v1.4.1
-- 修正融資融券爬蟲錯誤。
+- 修正融資融券爬蟲錯誤
+
 ### v1.4.0
 - 加入融資融券爬蟲
+
 ### v1.3.0
 - 加入三大法人爬蟲
+
 ### v1.2.1
-- 加入logger功能，方便追蹤錯誤。
+- 加入 logger 功能，方便追蹤錯誤
