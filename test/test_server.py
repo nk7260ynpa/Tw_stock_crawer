@@ -1,7 +1,6 @@
 """FastAPI server endpoint 測試模組。"""
 
 import datetime
-from unittest.mock import patch
 
 import pandas as pd
 from fastapi.testclient import TestClient

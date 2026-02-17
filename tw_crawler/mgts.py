@@ -145,7 +145,7 @@ def mgts_crawler(date: str) -> pd.DataFrame:
     Returns:
         處理後的融資融券資料 DataFrame。
     """
-    logger.info(f"Starting Request data from Foreign and Other Investors")
+    logger.info("Starting Request data from MGTS")
     response = fetch_mgts_data(date)
     df = parse_mgts_data(response, date)
     return df

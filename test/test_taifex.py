@@ -146,6 +146,3 @@ def test_taifex_crawler(mocker):
         "SpreadOrderVolume": [100.0]
     })
     pd.testing.assert_frame_equal(df, expect)
-
-if __name__ == "__main__":
-    pytest.main()

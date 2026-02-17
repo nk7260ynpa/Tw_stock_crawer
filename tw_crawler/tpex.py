@@ -111,11 +111,8 @@ def tpex_crawler(date: str) -> pd.DataFrame:
     Returns:
         處理後的股票資料 DataFrame。
     """
-    logger.info(f"Starting Request data from TPEX")
+    logger.info("Starting Request data from TPEX")
     response = fetch_tpex_data(date)
     df = parse_tpex_data(response)
     df = post_process(df, date)
     return df
-
-
-    

@@ -160,7 +160,7 @@ def twse_crawler(date: str) -> pd.DataFrame:
     Returns:
         處理後的股票資料 DataFrame。
     """
-    logger.info(f"Starting Request data from TWSE")
+    logger.info("Starting Request data from TWSE")
     response = fetch_twse_data(date)
     df = parse_twse_data(response, date)
     return df

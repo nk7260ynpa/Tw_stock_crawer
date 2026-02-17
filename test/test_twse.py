@@ -192,6 +192,3 @@ def test_twse_crawler(mocker):
         "PriceEarningratio": [20.0]
     })
     pd.testing.assert_frame_equal(result, expect)
-
-
-

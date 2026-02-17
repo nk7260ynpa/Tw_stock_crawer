@@ -2,15 +2,15 @@
 
 from setuptools import setup, find_packages
 
-long_description=open('README.md').read()
-long_description_content_type='text/markdown'
+with open('README.md', encoding='utf-8') as f:
+    long_description = f.read()
 
 setup(
     name='tw_crawler',
     version='v1.4.1',
     description='A crawler for Taiwan stock market data',
     long_description=long_description,
-    long_description_content_type=long_description_content_type,
+    long_description_content_type='text/markdown',
     packages=find_packages(),
     install_requires=[
         'requests',
