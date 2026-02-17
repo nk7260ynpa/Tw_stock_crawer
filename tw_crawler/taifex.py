@@ -9,6 +9,7 @@ import cloudscraper
 import numpy as np
 import pandas as pd
 
+
 def webzh2en_columns() -> dict[str, str]:
     """回傳中文欄位名稱對應英文欄位名稱的字典。
 
@@ -38,6 +39,7 @@ def webzh2en_columns() -> dict[str, str]:
     }
     return webzh2en_columns
 
+
 def post_process(df: pd.DataFrame) -> pd.DataFrame:
     """將從 TAIFEX 網站爬取的原始資料表做欄位轉換與清洗。
 
@@ -56,18 +58,35 @@ def post_process(df: pd.DataFrame) -> pd.DataFrame:
     df["Low"] = df["Low"].replace("-", None).astype(float)
     df["Last"] = df["Last"].replace("-", None).astype(float)
     df["Change"] = df["Change"].replace("-", None).astype(float)
-    df["ChangePercent"] = df["ChangePercent"].replace("-", None).str.replace("%", "").astype(float) / 100.0
+    df["ChangePercent"] = (
+        df["ChangePercent"].replace("-", None)
+        .str.replace("%", "").astype(float) / 100.0
+    )
     df["Volume"] = df["Volume"].astype(int)
-    df["SettlementPrice"] = df["SettlementPrice"].replace("-", None).astype(float)
-    df["OpenInterest"] = df["OpenInterest"].replace("-", None).astype(float)
+    df["SettlementPrice"] = (
+        df["SettlementPrice"].replace("-", None).astype(float)
+    )
+    df["OpenInterest"] = (
+        df["OpenInterest"].replace("-", None).astype(float)
+    )
     df["BestBid"] = df["BestBid"].replace("-", None).astype(float)
     df["BestAsk"] = df["BestAsk"].replace("-", None).astype(float)
-    df["HistoricalHigh"] = df["HistoricalHigh"].replace("-", None).astype(float)
-    df["HistoricalLow"] = df["HistoricalLow"].replace("-", None).astype(float)
-    df["TradingHalt"] = df["TradingHalt"].replace("-", None).replace("*", None).replace(" ", "").map(lambda x: {"": None}.get(x, x)).replace("是", 1.0).replace("否", 0.0).astype(float)
+    df["HistoricalHigh"] = (
+        df["HistoricalHigh"].replace("-", None).astype(float)
+    )
+    df["HistoricalLow"] = (
+        df["HistoricalLow"].replace("-", None).astype(float)
+    )
+    df["TradingHalt"] = (
+        df["TradingHalt"].replace("-", None)
+        .replace("*", None).replace(" ", "")
+        .map(lambda x: {"": None}.get(x, x))
+        .replace("是", 1.0).replace("否", 0.0).astype(float)
+    )
     df["TradingSession"] = df["TradingSession"].astype(str)
     df["SpreadOrderVolume"] = df["SpreadOrderVolume"].astype(float)
     return df
+
 
 def fetch_taifex_data(date: str) -> str:
     """從 TAIFEX 網站取得指定日期的期貨資料。
@@ -88,8 +107,9 @@ def fetch_taifex_data(date: str) -> str:
     }
     scraper = cloudscraper.create_scraper()
     response = scraper.post(url, data=payload)
-    response.raise_for_status()  # Ensure we raise an error for bad responses
+    response.raise_for_status()
     return response.text
+
 
 def parse_taifex_data(response: str) -> pd.DataFrame:
     """將 TAIFEX 回傳的 CSV 文字解析為 DataFrame。
@@ -102,6 +122,7 @@ def parse_taifex_data(response: str) -> pd.DataFrame:
     """
     df = pd.read_csv(io.StringIO(response), index_col=False)
     return df
+
 
 def taifex_crawler(date: str) -> pd.DataFrame:
     """爬取指定日期的 TAIFEX 期貨資料。
@@ -116,4 +137,3 @@ def taifex_crawler(date: str) -> pd.DataFrame:
     df = parse_taifex_data(response)
     df = post_process(df)
     return df
-

@@ -10,6 +10,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
 def en_columns() -> list[str]:
     """回傳 TWSE 爬蟲的英文欄位名稱列表。
 
@@ -43,7 +44,6 @@ def zh2en_columns() -> dict[str, str]:
     Returns:
         dict[str, str]: 中英文欄位名稱對照字典。
     """
-
     zh2en_columns = {
         "證券代號": "SecurityCode",
         "證券名稱": "StockName",
@@ -64,6 +64,7 @@ def zh2en_columns() -> dict[str, str]:
     }
     return zh2en_columns
 
+
 def html2signal() -> dict[str, int]:
     """回傳 HTML 漲跌符號對應數值的字典。"""
     html2signal = {
@@ -73,6 +74,7 @@ def html2signal() -> dict[str, int]:
         "<p>X</p>": 0
     }
     return html2signal
+
 
 def remove_comma(x: str) -> str:
     """移除字串中的逗號。
@@ -85,29 +87,71 @@ def remove_comma(x: str) -> str:
     """
     return x.replace(",", "")
 
+
 def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
+    """將 TWSE 原始資料表做欄位轉換與資料清洗。
+
+    Args:
+        df: 從 TWSE 網站爬取的原始 DataFrame。
+        date: 日期字串，格式為 'YYYY-MM-DD'。
+
+    Returns:
+        處理後的 DataFrame。
+    """
     df = df.rename(columns=zh2en_columns())
     df["Date"] = date
     df["Date"] = pd.to_datetime(df["Date"])
     df["TradeVolume"] = df["TradeVolume"].map(remove_comma).astype(int)
     df["Transaction"] = df["Transaction"].map(remove_comma).astype(int)
     df["TradeValue"] = df["TradeValue"].map(remove_comma).astype(int)
-    df["OpeningPrice"] = df["OpeningPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["HighestPrice"] = df["HighestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["LowestPrice"] = df["LowestPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["ClosingPrice"] = df["ClosingPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["OpeningPrice"] = (
+        df["OpeningPrice"].str.replace(",", "")
+        .str.replace("--", "0").astype(float)
+    )
+    df["HighestPrice"] = (
+        df["HighestPrice"].str.replace(",", "")
+        .str.replace("--", "0").astype(float)
+    )
+    df["LowestPrice"] = (
+        df["LowestPrice"].str.replace(",", "")
+        .str.replace("--", "0").astype(float)
+    )
+    df["ClosingPrice"] = (
+        df["ClosingPrice"].str.replace(",", "")
+        .str.replace("--", "0").astype(float)
+    )
     df["Dir"] = df["Dir"].map(html2signal()).astype(float)
-    df["Change"] = df["Change"].str.replace(",", "").str.replace("--", "0").astype(float)
+    df["Change"] = (
+        df["Change"].str.replace(",", "")
+        .str.replace("--", "0").astype(float)
+    )
     df["Change"] = df["Change"] * df["Dir"]
-    df["LastBestBidPrice"] = df["LastBestBidPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["LastBestBidVolume"] = df["LastBestBidVolume"].map(lambda x: {"": "0"}.get(x, x)).str.replace(",", "").str.replace("--", "0").astype(int)
-    df["LastBestAskPrice"] = df["LastBestAskPrice"].str.replace(",", "").str.replace("--", "0").astype(float)
-    df["LastBestAskVolume"] = df["LastBestAskVolume"].map(lambda x: {"": "0"}.get(x, x)).str.replace(",", "").str.replace("--", "0").astype(int)
-    df["PriceEarningratio"] = df["PriceEarningratio"].str.replace(",", "").astype(float)
+    df["LastBestBidPrice"] = (
+        df["LastBestBidPrice"].str.replace(",", "")
+        .str.replace("--", "0").astype(float)
+    )
+    df["LastBestBidVolume"] = (
+        df["LastBestBidVolume"]
+        .map(lambda x: {"": "0"}.get(x, x))
+        .str.replace(",", "").str.replace("--", "0").astype(int)
+    )
+    df["LastBestAskPrice"] = (
+        df["LastBestAskPrice"].str.replace(",", "")
+        .str.replace("--", "0").astype(float)
+    )
+    df["LastBestAskVolume"] = (
+        df["LastBestAskVolume"]
+        .map(lambda x: {"": "0"}.get(x, x))
+        .str.replace(",", "").str.replace("--", "0").astype(int)
+    )
+    df["PriceEarningratio"] = (
+        df["PriceEarningratio"].str.replace(",", "").astype(float)
+    )
 
     df = df.drop(columns=["Dir"])
     df = df[["Date"] + [col for col in df.columns if col != "Date"]]
     return df
+
 
 def fetch_twse_data(date: str) -> dict:
     """從 TWSE 網站取得指定日期的股票資料。
@@ -118,9 +162,13 @@ def fetch_twse_data(date: str) -> dict:
     Returns:
         TWSE API 回傳的 JSON 資料。
     """
-    url = f'https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date={date.replace("-", "")}&type=ALL&response=json'
+    url = (
+        "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
+        f"?date={date.replace('-', '')}&type=ALL&response=json"
+    )
     response = requests.get(url)
     return response.json()
+
 
 def gen_empty_date_df() -> pd.DataFrame:
     """產生 TWSE 休市時的空 DataFrame。
@@ -132,6 +180,7 @@ def gen_empty_date_df() -> pd.DataFrame:
     df.insert(0, "Date", pd.NaT)
     df = df.drop(columns=["Dir"])
     return df
+
 
 def parse_twse_data(response: dict, date: str) -> pd.DataFrame:
     """將 TWSE API 回傳的 JSON 解析為 DataFrame。
@@ -145,11 +194,15 @@ def parse_twse_data(response: dict, date: str) -> pd.DataFrame:
     """
     if response["stat"] == "OK":
         target_table = response["tables"][8]
-        df = pd.DataFrame(columns=target_table["fields"], data=target_table["data"])
+        df = pd.DataFrame(
+            columns=target_table["fields"],
+            data=target_table["data"],
+        )
         df = post_process(df, date)
     else:
         df = gen_empty_date_df()
     return df
+
 
 def twse_crawler(date: str) -> pd.DataFrame:
     """爬取指定日期的 TWSE 上市股票資料。

@@ -10,6 +10,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+
 def webzh2en_columns() -> dict[str, str]:
     """回傳中文欄位名稱對應英文欄位名稱的字典。
 
@@ -39,6 +40,7 @@ def webzh2en_columns() -> dict[str, str]:
     }
     return webzh2en_columns
 
+
 def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
     """將從 TPEX 網站爬取的原始資料表做欄位轉換與清洗。
 
@@ -53,24 +55,56 @@ def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
     df["Date"] = date
     df["Date"] = pd.to_datetime(df["Date"])
     df["Code"] = df["Code"].astype(str)
-    df["Close"] = df["Close"].replace("----", None).str.replace(",", "").astype(float)
-    df["Change"] = df["Change"].replace("除權", None).replace("除息", None).replace("---", None).astype(float)
-    df["Open"] = df["Open"].replace("----", None).str.replace(",", "").astype(float)
-    df["High"] = df["High"].replace("----", None).str.replace(",", "").astype(float)
-    df["Low"] = df["Low"].replace("----", None).str.replace(",", "").astype(float)
+    df["Close"] = (
+        df["Close"].replace("----", None)
+        .str.replace(",", "").astype(float)
+    )
+    df["Change"] = (
+        df["Change"].replace("除權", None)
+        .replace("除息", None).replace("---", None).astype(float)
+    )
+    df["Open"] = (
+        df["Open"].replace("----", None)
+        .str.replace(",", "").astype(float)
+    )
+    df["High"] = (
+        df["High"].replace("----", None)
+        .str.replace(",", "").astype(float)
+    )
+    df["Low"] = (
+        df["Low"].replace("----", None)
+        .str.replace(",", "").astype(float)
+    )
     df["TradeVolume"] = df["TradeVolume"].str.replace(",", "").astype(int)
     df["TradeAmount"] = df["TradeAmount"].str.replace(",", "").astype(int)
-    df["NumberOfTransactions"] = df["NumberOfTransactions"].str.replace(",", "").astype(int)
-    df["LastBestBidPrice"] = df["LastBestBidPrice"].str.replace(",", "").astype(float)
-    df["LastBidVolume"] = df["LastBidVolume"].str.replace(",", "").astype(int)
-    df["LastBestAskPrice"] = df["LastBestAskPrice"].str.replace(",", "").astype(float)
-    df["LastBestAskVolume"] = df["LastBestAskVolume"].str.replace(",", "").astype(int)
-    df["IssuedShares"] = df["IssuedShares"].str.replace(",", "").astype(int)
-    df["NextDayUpLimitPrice"] = df["NextDayUpLimitPrice"].str.replace(",", "").astype(float)
-    df["NextDayDownLimitPrice"] = df["NextDayDownLimitPrice"].str.replace(",", "").astype(float)
+    df["NumberOfTransactions"] = (
+        df["NumberOfTransactions"].str.replace(",", "").astype(int)
+    )
+    df["LastBestBidPrice"] = (
+        df["LastBestBidPrice"].str.replace(",", "").astype(float)
+    )
+    df["LastBidVolume"] = (
+        df["LastBidVolume"].str.replace(",", "").astype(int)
+    )
+    df["LastBestAskPrice"] = (
+        df["LastBestAskPrice"].str.replace(",", "").astype(float)
+    )
+    df["LastBestAskVolume"] = (
+        df["LastBestAskVolume"].str.replace(",", "").astype(int)
+    )
+    df["IssuedShares"] = (
+        df["IssuedShares"].str.replace(",", "").astype(int)
+    )
+    df["NextDayUpLimitPrice"] = (
+        df["NextDayUpLimitPrice"].str.replace(",", "").astype(float)
+    )
+    df["NextDayDownLimitPrice"] = (
+        df["NextDayDownLimitPrice"].str.replace(",", "").astype(float)
+    )
 
     df = df[["Date"] + [col for col in df.columns if col != "Date"]]
     return df
+
 
 def fetch_tpex_data(date: str) -> dict:
     """從 TPEX 網站取得指定日期的股票資料。
@@ -88,6 +122,7 @@ def fetch_tpex_data(date: str) -> dict:
     response = scraper.post(url, data=data).json()
     return response
 
+
 def parse_tpex_data(response: dict) -> pd.DataFrame:
     """將 TPEX API 回傳的 JSON 解析為 DataFrame。
 
@@ -101,6 +136,7 @@ def parse_tpex_data(response: dict) -> pd.DataFrame:
     data = response["tables"][0]["data"]
     df = pd.DataFrame(columns=fields, data=data)
     return df
+
 
 def tpex_crawler(date: str) -> pd.DataFrame:
     """爬取指定日期的 TPEX 上櫃股票資料。

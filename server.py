@@ -1,6 +1,7 @@
 """FastAPI 股價資料 Server。
 
-提供單一 GET endpoint，自動爬取當天所有股價資料（上市、上櫃、期貨、三大法人、融資融券）。
+提供單一 GET endpoint，自動爬取當天所有股價資料
+（上市、上櫃、期貨、三大法人、融資融券）。
 """
 
 import datetime
@@ -40,7 +41,7 @@ CRAWLERS = {
 def crawl_all() -> dict:
     """爬取當天所有股價資料並回傳 JSON。"""
     today = datetime.date.today().strftime("%Y-%m-%d")
-    logger.info(f"Starting all crawlers for date: {today}")
+    logger.info("Starting all crawlers for date: %s", today)
 
     results = {}
     with ThreadPoolExecutor(max_workers=5) as executor:
@@ -53,9 +54,11 @@ def crawl_all() -> dict:
             try:
                 df = future.result()
                 results[name] = df.to_dict(orient="records")
-                logger.info(f"Crawler {name} completed, rows: {len(df)}")
+                logger.info(
+                    "Crawler %s completed, rows: %d", name, len(df)
+                )
             except Exception as e:
-                logger.error(f"Crawler {name} failed: {e}")
+                logger.error("Crawler %s failed: %s", name, e)
                 results[name] = {"error": str(e)}
 
     return {"date": today, "data": results}
