@@ -1,3 +1,5 @@
+"""tw_crawler 套件安裝設定。"""
+
 from setuptools import setup, find_packages
 
 long_description=open('README.md').read()

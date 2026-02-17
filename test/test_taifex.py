@@ -1,3 +1,5 @@
+"""TAIFEX 期貨爬蟲測試模組。"""
+
 import pytest
 import pandas as pd
 import tw_crawler.taifex as taifex

@@ -1,3 +1,5 @@
+"""FAOI 三大法人爬蟲測試模組。"""
+
 import pandas as pd
 
 import tw_crawler.faoi as faoi

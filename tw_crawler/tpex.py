@@ -1,3 +1,8 @@
+"""TPEX 上櫃股票爬蟲模組。
+
+提供台灣櫃買中心(TPEX)每日上櫃股票資料爬取與處理功能。
+"""
+
 import logging
 
 import cloudscraper

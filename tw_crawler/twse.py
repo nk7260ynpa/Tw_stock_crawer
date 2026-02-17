@@ -1,3 +1,8 @@
+"""TWSE 上市股票爬蟲模組。
+
+提供台灣證券交易所(TWSE)每日上市股票資料爬取與處理功能。
+"""
+
 import requests
 import logging
 

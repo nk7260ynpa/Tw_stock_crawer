@@ -1,3 +1,8 @@
+"""MGTS 融資融券爬蟲模組。
+
+提供台灣融資融券每日資料爬取與處理功能。
+"""
+
 import requests
 import logging
 

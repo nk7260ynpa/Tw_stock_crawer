@@ -1,3 +1,5 @@
+"""FastAPI server endpoint 測試模組。"""
+
 import datetime
 from unittest.mock import patch
 
