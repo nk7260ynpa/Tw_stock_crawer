@@ -5,16 +5,20 @@
 
 import datetime
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from fastapi import FastAPI
 
 import tw_crawler
 
+LOG_DIR = "logs"
+os.makedirs(LOG_DIR, exist_ok=True)
+
 log_formatter = logging.Formatter(
     "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-log_handler = logging.FileHandler("crawler.log")
+log_handler = logging.FileHandler(os.path.join(LOG_DIR, "crawler.log"))
 log_handler.setFormatter(log_formatter)
 
 logger = logging.getLogger(__name__)
