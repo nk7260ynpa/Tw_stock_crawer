@@ -4,13 +4,14 @@ import datetime
 
 import pandas as pd
 from fastapi.testclient import TestClient
+from pytest_mock import MockerFixture
 
 from server import app
 
 client = TestClient(app)
 
 
-def _mock_crawler(date):
+def _mock_crawler(date: str) -> pd.DataFrame:
     """建立假的爬蟲回傳 DataFrame。"""
     return pd.DataFrame({
         "Date": [date],
@@ -19,7 +20,7 @@ def _mock_crawler(date):
     })
 
 
-def test_crawl_all_success(mocker):
+def test_crawl_all_success(mocker: MockerFixture) -> None:
     """測試 GET / 正常回傳所有爬蟲資料。"""
     mocker.patch("server.CRAWLERS", {
         "twse": _mock_crawler,
@@ -38,9 +39,9 @@ def test_crawl_all_success(mocker):
     assert data["data"]["twse"][0]["SecurityCode"] == "2330"
 
 
-def test_crawl_all_partial_failure(mocker):
+def test_crawl_all_partial_failure(mocker: MockerFixture) -> None:
     """測試部分爬蟲失敗時，仍回傳其他成功的資料。"""
-    def _failing_crawler(date):
+    def _failing_crawler(date: str) -> pd.DataFrame:
         raise RuntimeError("connection error")
 
     mocker.patch("server.CRAWLERS", {

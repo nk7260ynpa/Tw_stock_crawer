@@ -1,10 +1,26 @@
 """TAIFEX 期貨爬蟲測試模組。"""
 
-import pytest
 import pandas as pd
+from pytest_mock import MockerFixture
+
 import tw_crawler.taifex as taifex
 
-def test_webzh2en_columns():
+TAIFEX_CSV_HEADER = (
+    "交易日期,契約,到期月份(週別),開盤價,最高價,最低價,收盤價,"
+    "漲跌價,漲跌%,成交量,結算價,未沖銷契約數,最後最佳買價,"
+    "最後最佳賣價,歷史最高價,歷史最低價,是否因訊息面暫停交易,"
+    "交易時段,價差對單式委託成交量"
+)
+
+TAIFEX_CSV_ROW = (
+    "2024/10/29,TX,202410,10000,10100,9900,10050,50,0.5%,"
+    "1000,10050,5000,10040,10060,11000,9000,否,一般,100"
+)
+
+TAIFEX_CSV = f"{TAIFEX_CSV_HEADER}\n{TAIFEX_CSV_ROW}"
+
+
+def test_webzh2en_columns() -> None:
     columns = taifex.webzh2en_columns()
     assert isinstance(columns, dict)
     expect = {
@@ -30,7 +46,8 @@ def test_webzh2en_columns():
     }
     assert columns == expect
 
-def test_post_process():
+
+def test_post_process() -> None:
     data = {
         "交易日期": ["2024/10/29"],
         "契約": ["TX"],
@@ -79,18 +96,23 @@ def test_post_process():
     })
     pd.testing.assert_frame_equal(processed_df, expect)
 
-def test_fetch_taifex_data(mocker):
+
+def test_fetch_taifex_data(mocker: MockerFixture) -> None:
     mock_response = mocker.Mock()
-    mock_response.text = "交易日期,契約,到期月份(週別),開盤價,最高價,最低價,收盤價,漲跌價,漲跌%,成交量,結算價,未沖銷契約數,最後最佳買價,最後最佳賣價,歷史最高價,歷史最低價,是否因訊息面暫停交易,交易時段,價差對單式委託成交量\n2024/10/29,TX,202410,10000,10100,9900,10050,50,0.5%,1000,10050,5000,10040,10060,11000,9000,否,一般,100"
-    mocker.patch("cloudscraper.create_scraper", return_value=mocker.Mock(post=mocker.Mock(return_value=mock_response)))
+    mock_response.text = TAIFEX_CSV
+    mocker.patch(
+        "cloudscraper.create_scraper",
+        return_value=mocker.Mock(
+            post=mocker.Mock(return_value=mock_response),
+        ),
+    )
     response = taifex.fetch_taifex_data("2024-10-29")
     assert "交易日期" in response
     assert response == mock_response.text
 
 
-def test_parse_taifex_data():
-    response = "交易日期,契約,到期月份(週別),開盤價,最高價,最低價,收盤價,漲跌價,漲跌%,成交量,結算價,未沖銷契約數,最後最佳買價,最後最佳賣價,歷史最高價,歷史最低價,是否因訊息面暫停交易,交易時段,價差對單式委託成交量\n2024/10/29,TX,202410,10000,10100,9900,10050,50,0.5%,1000,10050,5000,10040,10060,11000,9000,否,一般,100"
-    df = taifex.parse_taifex_data(response)
+def test_parse_taifex_data() -> None:
+    df = taifex.parse_taifex_data(TAIFEX_CSV)
     assert isinstance(df, pd.DataFrame)
     assert df.shape[0] == 1
     expect = pd.DataFrame({
@@ -117,9 +139,11 @@ def test_parse_taifex_data():
     pd.testing.assert_frame_equal(df, expect)
 
 
-def test_taifex_crawler(mocker):
-    mock_response = "交易日期,契約,到期月份(週別),開盤價,最高價,最低價,收盤價,漲跌價,漲跌%,成交量,結算價,未沖銷契約數,最後最佳買價,最後最佳賣價,歷史最高價,歷史最低價,是否因訊息面暫停交易,交易時段,價差對單式委託成交量\n2024/10/29,TX,202410,10000,10100,9900,10050,50,0.5%,1000,10050,5000,10040,10060,11000,9000,否,一般,100"
-    mocker.patch("tw_crawler.taifex.fetch_taifex_data", return_value=mock_response)
+def test_taifex_crawler(mocker: MockerFixture) -> None:
+    mocker.patch(
+        "tw_crawler.taifex.fetch_taifex_data",
+        return_value=TAIFEX_CSV,
+    )
     df = taifex.taifex_crawler("2024-10-29")
     assert isinstance(df, pd.DataFrame)
     assert "Date" in df.columns

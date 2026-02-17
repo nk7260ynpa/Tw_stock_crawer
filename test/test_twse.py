@@ -1,9 +1,12 @@
 """TWSE 上市股票爬蟲測試模組。"""
 
 import pandas as pd
+from pytest_mock import MockerFixture
+
 import tw_crawler.twse as twse
 
-def test_en_columns():
+
+def test_en_columns() -> None:
     result = twse.en_columns()
     expect = [
         "SecurityCode",
@@ -25,7 +28,8 @@ def test_en_columns():
     ]
     assert result == expect
 
-def test_zh2en_columns():
+
+def test_zh2en_columns() -> None:
     result = twse.zh2en_columns()
     expect = {
         "證券代號": "SecurityCode",
@@ -47,7 +51,8 @@ def test_zh2en_columns():
     }
     assert result == expect
 
-def test_html2signal():
+
+def test_html2signal() -> None:
     result = twse.html2signal()
     expect = {
         "<p> </p>": 0,
@@ -57,12 +62,14 @@ def test_html2signal():
     }
     assert result == expect
 
-def test_remove_comma():
+
+def test_remove_comma() -> None:
     result = twse.remove_comma("1,234,567")
     expect = "1234567"
     assert result == expect
 
-def test_post_process():
+
+def test_post_process() -> None:
     data = {
         "證券代號": ["2330"],
         "證券名稱": ["台積電"],
@@ -104,31 +111,57 @@ def test_post_process():
     })
     pd.testing.assert_frame_equal(result, expect)
 
-def test_fetch_twse_data(mocker):
+
+def test_fetch_twse_data(mocker: MockerFixture) -> None:
     mock_response = {
         "stat": "OK",
         "tables": [0, 0, 0, 0, 0, 0, 0, 0, {
-            "fields": ["證券代號", "證券名稱", "成交股數", "成交筆數", "成交金額", "開盤價", "最高價", "最低價", "收盤價", "漲跌(+/-)", "漲跌價差", "最後揭示買價", "最後揭示買量", "最後揭示賣價", "最後揭示賣量", "本益比"],
-            "data": [["2330", "台積電", "1,234,567", "1,234", "123,456,789", "600", "610", "590", "605", "<p style= color:red>+</p>", "5", "604", "1,000", "605", "2,000", "20"]]
+            "fields": [
+                "證券代號", "證券名稱", "成交股數", "成交筆數",
+                "成交金額", "開盤價", "最高價", "最低價", "收盤價",
+                "漲跌(+/-)", "漲跌價差", "最後揭示買價",
+                "最後揭示買量", "最後揭示賣價", "最後揭示賣量", "本益比",
+            ],
+            "data": [[
+                "2330", "台積電", "1,234,567", "1,234",
+                "123,456,789", "600", "610", "590", "605",
+                "<p style= color:red>+</p>", "5", "604",
+                "1,000", "605", "2,000", "20",
+            ]],
         }]
     }
-    mocker.patch('tw_crawler.twse.requests.get', return_value=mocker.Mock(json=lambda: mock_response))
+    mocker.patch(
+        'tw_crawler.twse.requests.get',
+        return_value=mocker.Mock(json=lambda: mock_response),
+    )
     result = twse.fetch_twse_data("2022-02-18")
     assert result == mock_response
 
-def test_gen_empty_date_df():
+
+def test_gen_empty_date_df() -> None:
     result = twse.gen_empty_date_df()
     expect = pd.DataFrame(columns=twse.en_columns())
     expect.insert(0, "Date", pd.NaT)
     expect = expect.drop(columns=["Dir"])
     pd.testing.assert_frame_equal(result, expect)
 
-def test_parse_twse_data():
+
+def test_parse_twse_data() -> None:
     response = {
         "stat": "OK",
-        "tables": [0,0,0,0,0,0,0,0,{
-            "fields": ["證券代號", "證券名稱", "成交股數", "成交筆數", "成交金額", "開盤價", "最高價", "最低價", "收盤價", "漲跌(+/-)", "漲跌價差", "最後揭示買價", "最後揭示買量", "最後揭示賣價", "最後揭示賣量", "本益比"],
-            "data": [["2330", "台積電", "1,234,567", "1,234", "123,456,789", "600", "610", "590", "605", "<p style= color:red>+</p>", "5", "604", "1,000", "605", "2,000", "20"]]
+        "tables": [0, 0, 0, 0, 0, 0, 0, 0, {
+            "fields": [
+                "證券代號", "證券名稱", "成交股數", "成交筆數",
+                "成交金額", "開盤價", "最高價", "最低價", "收盤價",
+                "漲跌(+/-)", "漲跌價差", "最後揭示買價",
+                "最後揭示買量", "最後揭示賣價", "最後揭示賣量", "本益比",
+            ],
+            "data": [[
+                "2330", "台積電", "1,234,567", "1,234",
+                "123,456,789", "600", "610", "590", "605",
+                "<p style= color:red>+</p>", "5", "604",
+                "1,000", "605", "2,000", "20",
+            ]],
         }]
     }
     date = "2022-02-18"
@@ -163,15 +196,28 @@ def test_parse_twse_data():
     pd.testing.assert_frame_equal(result, expect)
 
 
-def test_twse_crawler(mocker):
+def test_twse_crawler(mocker: MockerFixture) -> None:
     mock_response = {
         "stat": "OK",
-        "tables": [0,0,0,0,0,0,0,0,{
-            "fields": ["證券代號", "證券名稱", "成交股數", "成交筆數", "成交金額", "開盤價", "最高價", "最低價", "收盤價", "漲跌(+/-)", "漲跌價差", "最後揭示買價", "最後揭示買量", "最後揭示賣價", "最後揭示賣量", "本益比"],
-            "data": [["2330", "台積電", "1,234,567", "1,234", "123,456,789", "600", "610", "590", "605", "<p style= color:red>+</p>", "5", "604", "1,000", "605", "2,000", "20"]]
+        "tables": [0, 0, 0, 0, 0, 0, 0, 0, {
+            "fields": [
+                "證券代號", "證券名稱", "成交股數", "成交筆數",
+                "成交金額", "開盤價", "最高價", "最低價", "收盤價",
+                "漲跌(+/-)", "漲跌價差", "最後揭示買價",
+                "最後揭示買量", "最後揭示賣價", "最後揭示賣量", "本益比",
+            ],
+            "data": [[
+                "2330", "台積電", "1,234,567", "1,234",
+                "123,456,789", "600", "610", "590", "605",
+                "<p style= color:red>+</p>", "5", "604",
+                "1,000", "605", "2,000", "20",
+            ]],
         }]
     }
-    mocker.patch('tw_crawler.twse.requests.get', return_value=mocker.Mock(json=lambda: mock_response))
+    mocker.patch(
+        'tw_crawler.twse.requests.get',
+        return_value=mocker.Mock(json=lambda: mock_response),
+    )
     result = twse.twse_crawler("2022-02-18")
     expect = pd.DataFrame({
         "Date": pd.to_datetime(["2022-02-18"]),
