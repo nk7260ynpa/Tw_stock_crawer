@@ -42,7 +42,7 @@ def webzh2en_columns() -> dict[str, str]:
     }
     return webzh2en_columns
 
-def post_process(df) -> pd.DataFrame:
+def post_process(df: pd.DataFrame) -> pd.DataFrame:
     """
     將從taifex網站爬下來的資料表做專門的處理
 
@@ -77,7 +77,7 @@ def post_process(df) -> pd.DataFrame:
     df["SpreadOrderVolume"] = df["SpreadOrderVolume"].astype(float)
     return df
 
-def fetch_taifex_data(date: str) -> pd.DataFrame:
+def fetch_taifex_data(date: str) -> str:
     """
     Fetch data from Taifex website for a given date.
 

@@ -33,7 +33,7 @@ CRAWLERS = {
 
 
 @app.get("/")
-def crawl_all():
+def crawl_all() -> dict:
     """爬取當天所有股價資料並回傳 JSON。"""
     today = datetime.date.today().strftime("%Y-%m-%d")
     logger.info(f"Starting all crawlers for date: {today}")

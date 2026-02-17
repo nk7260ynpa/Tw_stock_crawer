@@ -10,7 +10,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-def en_columns():
+def en_columns() -> list[str]:
     """
     Return English columns for MGTS crawler
 
@@ -71,7 +71,7 @@ def zh2en_columns() -> dict[str, str]:
     }
     return zh2en_columns
 
-def remove_comma(x):
+def remove_comma(x: str) -> str:
     """
     Remove comma from a string.
 
@@ -86,7 +86,7 @@ def remove_comma(x):
     """
     return x.replace(",", "")
 
-def post_process(df, date):
+def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
     df.columns = en_columns()
     df["Date"] = date
     df["Date"] = pd.to_datetime(df["Date"])
@@ -108,7 +108,7 @@ def post_process(df, date):
     df = df[["Date"] + [col for col in df.columns if col != "Date"]]
     return df
 
-def gen_empty_date_df():
+def gen_empty_date_df() -> pd.DataFrame:
     """
     generate an empty DataFrame when MGTS is not open
     
@@ -119,7 +119,7 @@ def gen_empty_date_df():
     df.insert(0, "Date", pd.NaT)
     return df
 
-def parse_mgts_data(response, date):
+def parse_mgts_data(response: dict, date: str) -> pd.DataFrame:
     """
     Parse the JSON response from the MGTS website into a DataFrame.
 
@@ -139,7 +139,7 @@ def parse_mgts_data(response, date):
         df = gen_empty_date_df()
     return df
 
-def fetch_mgts_data(date):
+def fetch_mgts_data(date: str) -> dict:
     """
     Crawl the MGTS website for stock data on a given date and process it.
 
@@ -156,7 +156,7 @@ def fetch_mgts_data(date):
     response = requests.get(url)
     return response.json()
 
-def mgts_crawler(date):
+def mgts_crawler(date: str) -> pd.DataFrame:
     """
     Crawl the MGTS website for stock data on a given date and process it.
 

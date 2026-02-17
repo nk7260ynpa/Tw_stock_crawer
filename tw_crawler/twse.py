@@ -72,7 +72,8 @@ def zh2en_columns() -> dict[str, str]:
     }
     return zh2en_columns
 
-def html2signal() -> dict:
+def html2signal() -> dict[str, int]:
+    """回傳 HTML 漲跌符號對應數值的字典。"""
     html2signal = {
         "<p> </p>": 0,
         "<p style= color:green>-</p>": -1,
@@ -96,7 +97,7 @@ def remove_comma(x: str) -> str:
     """
     return x.replace(",", "")
 
-def post_process(df, date) -> pd.DataFrame:
+def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
     df = df.rename(columns=zh2en_columns())
     df["Date"] = date
     df["Date"] = pd.to_datetime(df["Date"])
@@ -137,7 +138,7 @@ def fetch_twse_data(date: str) -> dict:
     response = requests.get(url)
     return response.json()
 
-def gen_empty_date_df():
+def gen_empty_date_df() -> pd.DataFrame:
     """
     generate an empty DataFrame when TWSE is not open
     
@@ -149,7 +150,7 @@ def gen_empty_date_df():
     df = df.drop(columns=["Dir"])
     return df
 
-def parse_twse_data(response, date) -> pd.DataFrame:
+def parse_twse_data(response: dict, date: str) -> pd.DataFrame:
     """
     Parse the JSON response from the TWSE website into a DataFrame.
 
