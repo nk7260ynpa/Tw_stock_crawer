@@ -11,14 +11,10 @@ import requests
 logger = logging.getLogger(__name__)
 
 def en_columns() -> list[str]:
-    """
-    Return English columns for MGTS crawler
+    """回傳 MGTS 爬蟲的英文欄位名稱列表。
 
     Returns:
-        list: English columns for MGTS crawler
-
-    Examples:
-        >>> en_columns()
+        list[str]: MGTS 英文欄位名稱列表。
     """
     en_columns = [
         "SecurityCode",
@@ -41,14 +37,10 @@ def en_columns() -> list[str]:
     return en_columns
 
 def zh2en_columns() -> dict[str, str]:
-    """
-    回傳一個中文欄位名稱對應到英文欄位名稱的字典
+    """回傳中文欄位名稱對應英文欄位名稱的字典。
 
     Returns:
-        dict: 中文欄位名稱對應到英文欄位名稱的字典
-    
-    Examples:
-        >>> zh2en_columns()
+        dict[str, str]: 中英文欄位名稱對照字典。
     """
     zh2en_columns = {
         "日期": "Date",
@@ -72,17 +64,13 @@ def zh2en_columns() -> dict[str, str]:
     return zh2en_columns
 
 def remove_comma(x: str) -> str:
-    """
-    Remove comma from a string.
+    """移除字串中的逗號。
 
     Args:
-        x (str): a string with commas
+        x: 含有逗號的字串。
 
     Returns:
-        str: the string with commas removed
-
-    Examples:
-        >>> remove_comma("1,234")
+        移除逗號後的字串。
     """
     return x.replace(",", "")
 
@@ -109,28 +97,24 @@ def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
     return df
 
 def gen_empty_date_df() -> pd.DataFrame:
-    """
-    generate an empty DataFrame when MGTS is not open
-    
+    """產生 MGTS 休市時的空 DataFrame。
+
     Returns:
-        pd.DataFrame: an empty DataFrame with the correct columns
+        具有正確欄位的空 DataFrame。
     """
     df = pd.DataFrame(columns=en_columns())
     df.insert(0, "Date", pd.NaT)
     return df
 
 def parse_mgts_data(response: dict, date: str) -> pd.DataFrame:
-    """
-    Parse the JSON response from the MGTS website into a DataFrame.
+    """將 MGTS API 回傳的 JSON 解析為 DataFrame。
 
     Args:
-        data (dict): The JSON response from the MGTS website.
+        response: MGTS API 回傳的 JSON 資料。
+        date: 日期字串，格式為 'YYYY-MM-DD'。
 
     Returns:
-        pd.DataFrame: The parsed DataFrame.
-
-    Examples:
-        >>> parse_mgts_data(data)
+        解析並處理後的 DataFrame。
     """
     if response["stat"] == "OK":
         df = pd.DataFrame(columns=response["tables"][1]["fields"], data=response["tables"][1]["data"])
@@ -140,34 +124,26 @@ def parse_mgts_data(response: dict, date: str) -> pd.DataFrame:
     return df
 
 def fetch_mgts_data(date: str) -> dict:
-    """
-    Crawl the MGTS website for stock data on a given date and process it.
+    """從 TWSE 網站取得指定日期的融資融券資料。
 
     Args:
-        date (str): The date in 'YYYY-MM-DD' format.
+        date: 日期字串，格式為 'YYYY-MM-DD'。
 
     Returns:
-        pd.DataFrame: The processed DataFrame containing stock data.
-
-    Examples:
-        >>> MGTS_crawler("2022-02-18")
+        MGTS API 回傳的 JSON 資料。
     """
     url = f'https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date.replace("-", "")}&selectType=ALL&response=json'
     response = requests.get(url)
     return response.json()
 
 def mgts_crawler(date: str) -> pd.DataFrame:
-    """
-    Crawl the MGTS website for stock data on a given date and process it.
+    """爬取指定日期的融資融券資料。
 
     Args:
-        date (str): The date in 'YYYY-MM-DD' format.
+        date: 日期字串，格式為 'YYYY-MM-DD'。
 
     Returns:
-        pd.DataFrame: The processed DataFrame containing stock data.
-
-    Examples:
-        >>> mgts_crawler("2022-02-18")
+        處理後的融資融券資料 DataFrame。
     """
     logger.info(f"Starting Request data from Foreign and Other Investors")
     response = fetch_mgts_data(date)

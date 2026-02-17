@@ -10,14 +10,10 @@ import numpy as np
 import pandas as pd
 
 def webzh2en_columns() -> dict[str, str]:
-    """
-    回傳一個中文欄位名稱對應到英文欄位名稱的字典
+    """回傳中文欄位名稱對應英文欄位名稱的字典。
 
     Returns:
-        dict: 中文欄位名稱對應到英文欄位名稱的字典
-    
-    Examples:
-        >>> webzh2en_columns()
+        dict[str, str]: 中英文欄位名稱對照字典。
     """
     webzh2en_columns = {
         "交易日期": "Date",
@@ -43,17 +39,13 @@ def webzh2en_columns() -> dict[str, str]:
     return webzh2en_columns
 
 def post_process(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    將從taifex網站爬下來的資料表做專門的處理
+    """將從 TAIFEX 網站爬取的原始資料表做欄位轉換與清洗。
 
     Args:
-        df (pd.DataFrame): 剛從taifex網站爬下來的資料表
+        df: 從 TAIFEX 網站爬取的原始 DataFrame。
 
     Returns:
-        pd.DataFrame: 根據每個column做完各自處理的資料表
-
-    Examples:
-        >>> df = post_process(df)
+        處理後的 DataFrame。
     """
     df = df.rename(columns=webzh2en_columns())
     df["Date"] = pd.to_datetime(df["Date"], format="%Y/%m/%d")
@@ -78,17 +70,13 @@ def post_process(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def fetch_taifex_data(date: str) -> str:
-    """
-    Fetch data from Taifex website for a given date.
+    """從 TAIFEX 網站取得指定日期的期貨資料。
 
     Args:
-        date (str): The date in 'YYYY-MM-DD' format.
+        date: 日期字串，格式為 'YYYY-MM-DD'。
 
     Returns:
-        pd.DataFrame: The data table fetched from the Taifex website.
-
-    Examples:
-        >>> df = fetch_taifex_data("2024-10-29")
+        TAIFEX 回傳的 CSV 文字內容。
     """
     url = "https://www.taifex.com.tw/cht/3/futDataDown"
     date = date.replace("-", "/")
@@ -104,33 +92,25 @@ def fetch_taifex_data(date: str) -> str:
     return response.text
 
 def parse_taifex_data(response: str) -> pd.DataFrame:
-    """
-    Parse the data table from the response text.
+    """將 TAIFEX 回傳的 CSV 文字解析為 DataFrame。
 
     Args:
-        response (str): The response text from the Taifex website.
-        
-        Returns:
-        pd.DataFrame: The data table parsed from the response text.
-        
-        Examples:
-        >>> df = parse_taifex_data(response)
+        response: TAIFEX 回傳的 CSV 文字內容。
+
+    Returns:
+        解析後的 DataFrame。
     """
     df = pd.read_csv(io.StringIO(response), index_col=False)
     return df
 
 def taifex_crawler(date: str) -> pd.DataFrame:
-    """
-    Crawl the Taifex website for data on a given date.
+    """爬取指定日期的 TAIFEX 期貨資料。
 
     Args:
-        date (str): The date in 'YYYY-MM-DD' format.
+        date: 日期字串，格式為 'YYYY-MM-DD'。
 
     Returns:
-        pd.DataFrame: The processed DataFrame containing stock data.
-
-    Examples:
-        >>> df = taifex_crawler("2024-10-29")
+        處理後的期貨資料 DataFrame。
     """
     response = fetch_taifex_data(date)
     df = parse_taifex_data(response)

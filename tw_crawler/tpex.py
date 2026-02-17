@@ -11,14 +11,10 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 def webzh2en_columns() -> dict[str, str]:
-    """
-    回傳一個中文欄位名稱對應到英文欄位名稱的字典
+    """回傳中文欄位名稱對應英文欄位名稱的字典。
 
     Returns:
-        dict: 中文欄位名稱對應到英文欄位名稱的字典
-    
-    Examples:
-        >>> zh2en_columns()
+        dict[str, str]: 中英文欄位名稱對照字典。
     """
     webzh2en_columns = {
         "代號": "Code",
@@ -44,17 +40,14 @@ def webzh2en_columns() -> dict[str, str]:
     return webzh2en_columns
 
 def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
-    """
-    將從tpex網站爬下來的資料表做專門的處理
+    """將從 TPEX 網站爬取的原始資料表做欄位轉換與清洗。
 
     Args:
-        df (pd.DataFrame): 剛從tpex網站爬下來的資料表
+        df: 從 TPEX 網站爬取的原始 DataFrame。
+        date: 日期字串，格式為 'YYYY-MM-DD'。
 
     Returns:
-        pd.DataFrame: 根據每個column做完各自處理的資料表
-
-    Examples:
-        >>> df = post_process(df)
+        處理後的 DataFrame。
     """
     df = df.rename(columns=webzh2en_columns())
     df["Date"] = date
@@ -80,14 +73,13 @@ def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
     return df
 
 def fetch_tpex_data(date: str) -> dict:
-    """
-    Fetch data from the TPEX website for a given date.
+    """從 TPEX 網站取得指定日期的股票資料。
 
     Args:
-        date (str): The date in 'YYYY-MM-DD' format.
+        date: 日期字串，格式為 'YYYY-MM-DD'。
 
     Returns:
-        dict: The JSON response from the TPEX website.
+        TPEX API 回傳的 JSON 資料。
     """
     scraper = cloudscraper.create_scraper()
     url = "https://www.tpex.org.tw/www/zh-tw/afterTrading/otc"
@@ -97,14 +89,13 @@ def fetch_tpex_data(date: str) -> dict:
     return response
 
 def parse_tpex_data(response: dict) -> pd.DataFrame:
-    """
-    Parse the JSON response from the TPEX website into a DataFrame.
+    """將 TPEX API 回傳的 JSON 解析為 DataFrame。
 
     Args:
-        response (dict): The JSON response from the TPEX website.
+        response: TPEX API 回傳的 JSON 資料。
 
     Returns:
-        pd.DataFrame: The parsed DataFrame.
+        解析後的 DataFrame。
     """
     fields = response["tables"][0]["fields"]
     data = response["tables"][0]["data"]
@@ -112,14 +103,13 @@ def parse_tpex_data(response: dict) -> pd.DataFrame:
     return df
 
 def tpex_crawler(date: str) -> pd.DataFrame:
-    """
-    Crawl the TPEX website for stock data on a given date and process it.
+    """爬取指定日期的 TPEX 上櫃股票資料。
 
     Args:
-        date (str): The date in 'YYYY-MM-DD' format.
+        date: 日期字串，格式為 'YYYY-MM-DD'。
 
     Returns:
-        pd.DataFrame: The processed DataFrame containing stock data.
+        處理後的股票資料 DataFrame。
     """
     logger.info(f"Starting Request data from TPEX")
     response = fetch_tpex_data(date)
