@@ -15,6 +15,7 @@ docker rm -f "$CONTAINER_NAME" 2>/dev/null
 # 啟動 container
 docker run -d \
     --name "$CONTAINER_NAME" \
+    --network db_network \
     -p "$PORT:$PORT" \
     -v "$LOG_DIR:/workspace/logs" \
     --rm \
