@@ -44,3 +44,4 @@ if __name__ == "__main__":
     show_response("期貨（TAIFEX）", f"{BASE_URL}/taifex?date=2024-10-29")
     show_response("三大法人（FAOI）", f"{BASE_URL}/faoi?date=2024-10-29")
     show_response("融資融券（MGTS）", f"{BASE_URL}/mgts?date=2024-10-29")
+    show_response("集保戶股權分散表（TDCC）", f"{BASE_URL}/tdcc")

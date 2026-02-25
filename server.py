@@ -43,6 +43,7 @@ CRAWLERS = {
     "taifex": tw_crawler.taifex_crawler,
     "faoi": tw_crawler.faoi_crawler,
     "mgts": tw_crawler.mgts_crawler,
+    "tdcc": tw_crawler.tdcc_crawler,
 }
 
 
@@ -94,7 +95,7 @@ def crawl_all(
     logger.info("Starting all crawlers for date: %s", date)
 
     results = {}
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=6) as executor:
         future_to_name = {
             executor.submit(crawler, date): name
             for name, crawler in CRAWLERS.items()
@@ -167,3 +168,14 @@ def crawl_mgts(
 ) -> dict:
     """爬取指定日期的融資融券資料。"""
     return _run_crawler("mgts", _get_date(date))
+
+
+@app.get("/tdcc")
+def crawl_tdcc(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取集保戶股權分散表資料（僅回傳最新一期）。"""
+    return _run_crawler("tdcc", _get_date(date))

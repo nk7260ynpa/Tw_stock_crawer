@@ -129,6 +129,18 @@ def test_crawl_mgts(mocker: MockerFixture) -> None:
     assert data["date"] == "2024-10-29"
 
 
+def test_crawl_tdcc(mocker: MockerFixture) -> None:
+    """測試 GET /tdcc 回傳集保戶股權分散表資料。"""
+    mocker.patch("server.CRAWLERS", {"tdcc": _mock_crawler})
+
+    response = client.get("/tdcc?date=2024-10-29")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == "2024-10-29"
+    assert data["data"][0]["SecurityCode"] == "2330"
+
+
 def test_crawl_single_failure(mocker: MockerFixture) -> None:
     """測試單一爬蟲失敗時回傳 error。"""
     def _failing_crawler(date: str) -> pd.DataFrame:

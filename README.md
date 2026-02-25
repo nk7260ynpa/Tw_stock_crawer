@@ -13,6 +13,7 @@
 | TAIFEX | 期貨 |
 | FAOI | 三大法人買賣超 |
 | MGTS | 融資融券 |
+| TDCC | 集保戶股權分散表（每週更新） |
 
 ## 安裝
 
@@ -50,6 +51,9 @@ df_faoi = tw_crawler.faoi_crawler("2024-10-15")
 
 # 融資融券
 df_mgts = tw_crawler.mgts_crawler("2024-10-15")
+
+# 集保戶股權分散表（回傳最新一期資料，date 參數不影響查詢結果）
+df_tdcc = tw_crawler.tdcc_crawler("2024-10-15")
 ```
 
 ### 方式二：FastAPI Server
@@ -72,8 +76,11 @@ Server 預設運行於 `http://127.0.0.1:6738/`。
 | `GET /taifex` | 期貨 |
 | `GET /faoi` | 三大法人 |
 | `GET /mgts` | 融資融券 |
+| `GET /tdcc` | 集保戶股權分散表（僅回傳最新一期） |
 
 所有 endpoint 皆支援 `?date=YYYY-MM-DD` 參數，不帶參數則預設為當天。
+
+> **注意**：TDCC 集保資料由 API 固定回傳最新一期（通常每週五更新），`date` 參數不影響查詢結果。
 
 #### 請求範例
 
@@ -116,6 +123,11 @@ Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）
 - 歷史：`logs/crawler.YYYY-MM-DD.log`
 
 ## CHANGELOG
+
+### v2.1.0
+- 新增 TDCC 集保戶股權分散表爬蟲
+- 新增 /tdcc API endpoint
+- ThreadPoolExecutor 更新為 6 個 workers
 
 ### v2.0.0
 - 新增 FastAPI Server，提供 REST API 介面
