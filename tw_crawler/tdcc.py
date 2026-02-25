@@ -120,6 +120,9 @@ def parse_tdcc_data(response: list[dict]) -> pd.DataFrame:
 
     df = pd.DataFrame(response)
 
+    # 移除欄位名稱中的 BOM 字元與空白
+    df.columns = df.columns.str.strip().str.replace("\ufeff", "")
+
     # 提取資料日期（格式 YYYYMMDD），轉為 YYYY-MM-DD
     data_date_raw = str(df["資料日期"].iloc[0]).strip()
     data_date = (
