@@ -221,3 +221,24 @@ def crawl_cnyes_news(
     except Exception as e:
         logger.error("CNYES news crawler failed: %s", e)
         return {"date": date, "error": str(e)}
+
+
+@app.get("/ptt_news")
+def crawl_ptt_news(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取指定日期的 PTT 股版文章。"""
+    date = _get_date(date)
+    logger.info("Starting PTT news crawler for date: %s", date)
+    try:
+        df = tw_crawler.ptt_news_crawler(date)
+        logger.info(
+            "PTT news crawler completed, articles: %d", len(df)
+        )
+        return {"date": date, "data": df.to_dict(orient="records")}
+    except Exception as e:
+        logger.error("PTT news crawler failed: %s", e)
+        return {"date": date, "error": str(e)}

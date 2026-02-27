@@ -235,3 +235,42 @@ def test_crawl_cnyes_news_failure(mocker: MockerFixture) -> None:
     data = response.json()
     assert "error" in data
     assert data["date"] == "2024-10-29"
+
+
+def test_crawl_ptt_news(mocker: MockerFixture) -> None:
+    """測試 GET /ptt_news 回傳 PTT 股版文章資料。"""
+    mock_df = pd.DataFrame({
+        "Date": ["2024-10-29"],
+        "Time": ["14:30:00"],
+        "Author": ["stockman"],
+        "Head": ["[新聞] 台積電法說會釋利多"],
+        "url": ["https://www.ptt.cc/bbs/stock/M.123.A.B01.html"],
+        "Content": ["台積電今日召開法說會。"],
+    })
+    mocker.patch(
+        "server.tw_crawler.ptt_news_crawler",
+        return_value=mock_df,
+    )
+
+    response = client.get("/ptt_news?date=2024-10-29")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == "2024-10-29"
+    assert len(data["data"]) == 1
+    assert data["data"][0]["Head"] == "[新聞] 台積電法說會釋利多"
+
+
+def test_crawl_ptt_news_failure(mocker: MockerFixture) -> None:
+    """測試 PTT 股版爬蟲失敗時回傳 error。"""
+    mocker.patch(
+        "server.tw_crawler.ptt_news_crawler",
+        side_effect=RuntimeError("connection error"),
+    )
+
+    response = client.get("/ptt_news?date=2024-10-29")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data
+    assert data["date"] == "2024-10-29"
