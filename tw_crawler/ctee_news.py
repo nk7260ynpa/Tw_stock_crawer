@@ -48,6 +48,34 @@ def _create_scraper() -> cloudscraper.CloudScraper:
     return scraper
 
 
+def _extract_time(text: str) -> str:
+    """從日期時間字串中提取時間部分。
+
+    支援 ISO 格式（含 T 分隔符）以及 HH:MM:SS 格式。
+
+    Args:
+        text: 可能包含時間的字串。
+
+    Returns:
+        時間字串（HH:MM:SS），若無法提取則回傳空字串。
+    """
+    if not text:
+        return ""
+    # ISO 格式: "2026-02-26T18:48:12" 或 "2026-02-26T18:48:12+08:00"
+    if "T" in text:
+        time_part = text.split("T")[1]
+        # 移除時區資訊
+        for sep in ["+", "Z"]:
+            if sep in time_part:
+                time_part = time_part.split(sep)[0]
+        return time_part
+    # 嘗試匹配 HH:MM:SS 或 HH:MM
+    match = re.search(r"(\d{1,2}:\d{2}(?::\d{2})?)", text)
+    if match:
+        return match.group(1)
+    return ""
+
+
 def _parse_date_string(text: str) -> "datetime.date | None":
     """嘗試從文字中解析日期。
 
@@ -352,7 +380,7 @@ def ctee_news_crawler(date: str) -> pd.DataFrame:
                 "Head": item["title"],
                 "SubHead": extra["SubHead"],
                 "Author": item["author"],
-                "Time": item["publishDatetime"],
+                "Time": _extract_time(item["publishDatetime"]),
                 "HashTag": extra["HashTag"],
                 "url": url,
                 "Content": extra["Content"],
@@ -407,7 +435,7 @@ def ctee_news_crawler(date: str) -> pd.DataFrame:
                 "Head": item["title"],
                 "SubHead": extra["SubHead"],
                 "Author": author,
-                "Time": time_str,
+                "Time": _extract_time(time_str),
                 "HashTag": extra["HashTag"],
                 "url": url,
                 "Content": extra["Content"],
@@ -422,7 +450,8 @@ def ctee_news_crawler(date: str) -> pd.DataFrame:
 
     df = pd.DataFrame(results)
     df["Date"] = date
-    df["Date"] = pd.to_datetime(df["Date"])
+    # 空字串 Time 轉為 None（MySQL TIME 欄位不接受空字串）
+    df["Time"] = df["Time"].replace("", None)
 
     columns = [
         "Date", "Time", "Author", "Head", "SubHead",
