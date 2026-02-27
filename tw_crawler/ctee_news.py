@@ -1,10 +1,12 @@
 """CTEE 工商時報股市新聞爬蟲模組。
 
 提供工商時報(CTEE)台股新聞文章爬取與處理功能。
-使用 cloudscraper 繞過 Cloudflare 防護，BeautifulSoup 解析 HTML。
+使用 CTEE JSON API 取得新聞列表，cloudscraper 爬取文章全文。
 """
 
+import json
 import logging
+import re
 import time
 from datetime import datetime
 
@@ -14,17 +16,17 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-# CTEE 台股新聞列表頁 URL
+# CTEE 台股新聞列表頁 URL（首頁 HTML，含第 1 頁資料）
 CTEE_LIST_URL = "https://www.ctee.com.tw/stock/twmarket"
 
-# CTEE 新聞列表頁 URL（含分頁）
-CTEE_LIST_URL_PAGED = "https://www.ctee.com.tw/stock/twmarket/page/{page}"
+# CTEE 分頁 JSON API（page >= 2）
+CTEE_API_URL = "https://www.ctee.com.tw/api/category/twmarket/{page}"
 
-# 每次 HTTP 請求之間的延遲秒數，避免被封鎖
+# 每次 HTTP 請求之間的延遲秒數
 REQUEST_DELAY = 1.5
 
-# 最大爬取頁數（列表頁分頁上限）
-MAX_PAGES = 10
+# 最大爬取頁數
+MAX_PAGES = 20
 
 
 def _create_scraper() -> cloudscraper.CloudScraper:
@@ -46,145 +48,10 @@ def _create_scraper() -> cloudscraper.CloudScraper:
     return scraper
 
 
-def fetch_list_page(
-    scraper: cloudscraper.CloudScraper,
-    page: int = 1,
-) -> str:
-    """取得 CTEE 台股新聞列表頁的 HTML 內容。
-
-    Args:
-        scraper: CloudScraper 實例。
-        page: 分頁頁碼，預設為 1。
-
-    Returns:
-        列表頁的 HTML 字串。
-
-    Raises:
-        requests.exceptions.HTTPError: 當 HTTP 狀態碼非 2xx 時拋出。
-    """
-    if page <= 1:
-        url = CTEE_LIST_URL
-    else:
-        url = CTEE_LIST_URL_PAGED.format(page=page)
-
-    logger.info("Fetching CTEE list page: %s", url)
-    response = scraper.get(url)
-    response.raise_for_status()
-    return response.text
-
-
-def parse_article_links(html: str, target_date: str) -> list[dict]:
-    """從列表頁 HTML 解析文章連結與基本資訊。
-
-    CTEE 列表頁使用 WordPress 架構，文章項目通常位於
-    article 或 div 元素中，包含標題連結與日期資訊。
-
-    Args:
-        html: 列表頁的 HTML 字串。
-        target_date: 目標日期字串，格式為 'YYYY-MM-DD'。
-
-    Returns:
-        符合目標日期的文章清單，每個元素為包含 'url' 與 'title' 的字典。
-    """
-    soup = BeautifulSoup(html, "lxml")
-    articles = []
-    found_older = False
-
-    # 解析目標日期
-    target_dt = datetime.strptime(target_date, "%Y-%m-%d").date()
-
-    # CTEE 使用 WordPress，列表頁文章通常在 article 標籤
-    # 或包含 post 相關 class 的容器中
-    article_elements = soup.find_all("article")
-    if not article_elements:
-        # 備選：尋找常見的 WordPress 文章列表結構
-        article_elements = soup.find_all(
-            "div", class_=lambda c: c and "post" in c
-        )
-    if not article_elements:
-        # 再備選：尋找包含文章連結的列表項目
-        article_elements = soup.find_all("li", class_=lambda c: c and "post" in c)
-
-    for article in article_elements:
-        # 取得文章連結
-        link_tag = article.find("a", href=True)
-        if not link_tag:
-            continue
-
-        url = link_tag.get("href", "")
-        if not url or "/news/" not in url:
-            continue
-
-        title = link_tag.get_text(strip=True)
-
-        # 嘗試從文章元素中提取日期
-        article_date = _extract_date_from_element(article)
-
-        if article_date:
-            if article_date == target_dt:
-                articles.append({"url": url, "title": title})
-            elif article_date < target_dt:
-                found_older = True
-        else:
-            # 若無法從列表頁取得日期，先收集連結，
-            # 後續在文章頁面中確認日期
-            articles.append({"url": url, "title": title})
-
-    return articles, found_older
-
-
-def _extract_date_from_element(element: BeautifulSoup) -> "datetime.date | None":
-    """從 HTML 元素中嘗試提取日期。
-
-    依序嘗試以下方式提取日期：
-    1. time 標籤的 datetime 屬性
-    2. time 標籤的文字內容
-    3. 包含日期格式的 span/div 元素
-
-    Args:
-        element: BeautifulSoup 元素。
-
-    Returns:
-        日期物件，若無法提取則回傳 None。
-    """
-    # 嘗試 time 標籤
-    time_tag = element.find("time")
-    if time_tag:
-        datetime_attr = time_tag.get("datetime", "")
-        if datetime_attr:
-            try:
-                return datetime.fromisoformat(
-                    datetime_attr.replace("Z", "+00:00")
-                ).date()
-            except (ValueError, TypeError):
-                pass
-        time_text = time_tag.get_text(strip=True)
-        parsed = _parse_date_string(time_text)
-        if parsed:
-            return parsed
-
-    # 嘗試 post-meta 中的日期文字
-    meta_elements = element.find_all(
-        ["span", "div"],
-        class_=lambda c: c and ("date" in c or "time" in c or "meta" in c),
-    )
-    for meta in meta_elements:
-        text = meta.get_text(strip=True)
-        parsed = _parse_date_string(text)
-        if parsed:
-            return parsed
-
-    return None
-
-
 def _parse_date_string(text: str) -> "datetime.date | None":
     """嘗試從文字中解析日期。
 
-    支援的格式：
-    - 2024-10-15
-    - 2024/10/15
-    - 2024.10.15
-    - 2024年10月15日
+    支援的格式：YYYY-MM-DD、YYYY/MM/DD、YYYY.MM.DD、YYYY年MM月DD日。
 
     Args:
         text: 可能包含日期的文字。
@@ -192,9 +59,6 @@ def _parse_date_string(text: str) -> "datetime.date | None":
     Returns:
         日期物件，若無法解析則回傳 None。
     """
-    import re
-
-    # 嘗試常見的日期格式
     patterns = [
         (r"(\d{4})-(\d{1,2})-(\d{1,2})", "%Y-%m-%d"),
         (r"(\d{4})/(\d{1,2})/(\d{1,2})", "%Y/%m/%d"),
@@ -206,428 +70,372 @@ def _parse_date_string(text: str) -> "datetime.date | None":
         if match:
             try:
                 if fmt:
-                    date_str = match.group(0)
-                    return datetime.strptime(date_str, fmt).date()
-                else:
-                    year, month, day = match.groups()
-                    return datetime(
-                        int(year), int(month), int(day)
-                    ).date()
+                    return datetime.strptime(match.group(0), fmt).date()
+                year, month, day = match.groups()
+                return datetime(int(year), int(month), int(day)).date()
             except (ValueError, TypeError):
                 continue
-
     return None
 
 
-def fetch_article_page(
+def fetch_list_page_html(
     scraper: cloudscraper.CloudScraper,
-    url: str,
 ) -> str:
-    """取得 CTEE 文章頁面的 HTML 內容。
+    """取得 CTEE 台股新聞列表頁的 HTML（第 1 頁）。
 
     Args:
         scraper: CloudScraper 實例。
-        url: 文章 URL。
 
     Returns:
-        文章頁面的 HTML 字串。
-
-    Raises:
-        requests.exceptions.HTTPError: 當 HTTP 狀態碼非 2xx 時拋出。
+        列表頁的 HTML 字串。
     """
-    logger.info("Fetching CTEE article: %s", url)
-    response = scraper.get(url)
+    logger.info("取得 CTEE 列表頁: %s", CTEE_LIST_URL)
+    response = scraper.get(CTEE_LIST_URL)
     response.raise_for_status()
     return response.text
 
 
-def parse_article(html: str, url: str) -> dict:
-    """解析 CTEE 文章頁面 HTML，擷取文章資訊。
-
-    CTEE 使用 WordPress 架構，文章頁面的主要結構：
-    - 標題：h1.entry-title 或 h1.post-title
-    - 副標題：h2.entry-subtitle 或 .post-subtitle
-    - 作者：.author 或 .post-meta 中的連結
-    - 時間：time 標籤或 .post-meta 中的日期文字
-    - 標籤：.post-tags 或 .entry-tags 中的連結
-    - 內文：div.entry-content
+def parse_html_list(html: str, target_date: str) -> tuple[list[dict], bool]:
+    """從首頁 HTML 解析文章，篩選指定日期。
 
     Args:
-        html: 文章頁面的 HTML 字串。
-        url: 文章 URL（用於記錄）。
+        html: 列表頁 HTML 字串。
+        target_date: 目標日期字串（YYYY-MM-DD）。
 
     Returns:
-        包含以下欄位的字典：
-        - Head: 標題
-        - SubHead: 副標題
-        - Author: 作者
-        - Time: 發布時間
-        - HashTag: 標籤（逗號分隔）
-        - Content: 全文內容
-        - url: 文章連結
+        tuple: (符合目標日期的文章清單, 是否發現更早日期)。
     """
     soup = BeautifulSoup(html, "lxml")
+    articles = []
+    found_older = False
+    target_dt = datetime.strptime(target_date, "%Y-%m-%d").date()
 
-    head = _extract_title(soup)
-    sub_head = _extract_subtitle(soup)
-    author = _extract_author(soup)
-    pub_time = _extract_time(soup)
-    hashtag = _extract_hashtags(soup)
-    content = _extract_content(soup)
+    for card in soup.select("div.newslist__card"):
+        title_tag = card.select_one("h3.news-title a")
+        if not title_tag:
+            continue
 
-    return {
-        "Head": head,
-        "SubHead": sub_head,
-        "Author": author,
-        "Time": pub_time,
-        "HashTag": hashtag,
-        "Content": content,
-        "url": url,
-    }
+        href = title_tag.get("href", "")
+        if not href or "/news/" not in href:
+            continue
 
+        url = "https://www.ctee.com.tw" + href if href.startswith("/") else href
+        title = title_tag.get_text(strip=True)
 
-def _extract_title(soup: BeautifulSoup) -> str:
-    """從文章頁面提取標題。
+        # 從 time.news-time 取得日期
+        time_tag = card.select_one("time.news-time")
+        article_date = _parse_date_string(
+            time_tag.get_text(strip=True)
+        ) if time_tag else None
 
-    Args:
-        soup: BeautifulSoup 物件。
+        if article_date:
+            if article_date == target_dt:
+                articles.append({"url": url, "title": title})
+            elif article_date < target_dt:
+                found_older = True
+        else:
+            articles.append({"url": url, "title": title})
 
-    Returns:
-        文章標題字串。
-    """
-    # 嘗試常見的 WordPress 標題 class
-    for selector in [
-        "h1.entry-title",
-        "h1.post-title",
-        "h1.article-title",
-        ".entry-header h1",
-        ".post-header h1",
-    ]:
-        tag = soup.select_one(selector)
-        if tag:
-            return tag.get_text(strip=True)
-
-    # 備選：直接找 h1
-    h1 = soup.find("h1")
-    if h1:
-        return h1.get_text(strip=True)
-
-    # 再備選：從 og:title meta 標籤取得
-    og_title = soup.find("meta", property="og:title")
-    if og_title:
-        return og_title.get("content", "")
-
-    return ""
+    return articles, found_older
 
 
-def _extract_subtitle(soup: BeautifulSoup) -> str:
-    """從文章頁面提取副標題。
+def fetch_api_page(
+    scraper: cloudscraper.CloudScraper,
+    page: int,
+) -> list[dict]:
+    """透過 CTEE JSON API 取得分頁資料。
 
     Args:
-        soup: BeautifulSoup 物件。
+        scraper: CloudScraper 實例。
+        page: 頁碼（>= 2）。
 
     Returns:
-        副標題字串，若無則回傳空字串。
+        文章列表（JSON 陣列）。
     """
-    for selector in [
-        ".entry-subtitle",
-        ".post-subtitle",
-        "h2.subtitle",
-        ".article-subtitle",
-        ".subheadline",
-    ]:
-        tag = soup.select_one(selector)
-        if tag:
-            return tag.get_text(strip=True)
+    url = CTEE_API_URL.format(page=page)
+    logger.info("取得 CTEE API 第 %d 頁: %s", page, url)
+    response = scraper.get(url)
+    response.raise_for_status()
+    data = json.loads(response.text)
+    return data if isinstance(data, list) else []
 
-    # 嘗試從 og:description 取得
+
+def filter_api_articles(
+    api_items: list[dict],
+    target_date: str,
+) -> tuple[list[dict], bool]:
+    """從 JSON API 回應中篩選指定日期的文章。
+
+    Args:
+        api_items: API 回傳的文章列表。
+        target_date: 目標日期字串（YYYY-MM-DD）。
+
+    Returns:
+        tuple: (符合日期的文章, 是否發現更早日期)。
+    """
+    target_dt = datetime.strptime(target_date, "%Y-%m-%d").date()
+    matched = []
+    found_older = False
+
+    for item in api_items:
+        # publishDatetime 格式: "2026-02-26T18:48:12"
+        pub_dt_str = item.get("publishDatetime", "")
+        article_date = None
+        if pub_dt_str:
+            try:
+                article_date = datetime.fromisoformat(pub_dt_str).date()
+            except (ValueError, TypeError):
+                pass
+
+        # 備用: publishDate 格式 "2026.02.26"
+        if not article_date:
+            article_date = _parse_date_string(
+                item.get("publishDate", "")
+            )
+
+        if article_date:
+            if article_date == target_dt:
+                href = item.get("hyperLink", "")
+                url = (
+                    "https://www.ctee.com.tw" + href
+                    if href.startswith("/") else href
+                )
+                matched.append({
+                    "title": item.get("title", ""),
+                    "author": item.get("author", ""),
+                    "publishDatetime": pub_dt_str,
+                    "content_preview": item.get("content", ""),
+                    "url": url,
+                })
+            elif article_date < target_dt:
+                found_older = True
+
+    return matched, found_older
+
+
+def fetch_article_content(
+    scraper: cloudscraper.CloudScraper,
+    url: str,
+) -> dict:
+    """爬取文章頁面取得全文與額外資訊。
+
+    Args:
+        scraper: CloudScraper 實例。
+        url: 文章完整 URL。
+
+    Returns:
+        包含 SubHead、HashTag、Content 的字典。
+    """
+    logger.info("取得 CTEE 文章: %s", url)
+    response = scraper.get(url)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "lxml")
+
+    # 副標題：og:description
+    sub_head = ""
     og_desc = soup.find("meta", property="og:description")
     if og_desc:
-        return og_desc.get("content", "")
+        sub_head = og_desc.get("content", "")
 
-    return ""
+    # 標籤
+    hashtags = []
+    meta_tags = soup.find_all("meta", property="article:tag")
+    hashtags = [m.get("content", "") for m in meta_tags if m.get("content")]
+    if not hashtags:
+        for sel in [".post-tags a", ".tags a", "a[rel='tag']"]:
+            els = soup.select(sel)
+            if els:
+                hashtags = [e.get_text(strip=True) for e in els]
+                break
 
-
-def _extract_author(soup: BeautifulSoup) -> str:
-    """從文章頁面提取作者。
-
-    Args:
-        soup: BeautifulSoup 物件。
-
-    Returns:
-        作者名稱字串。
-    """
-    # 嘗試 meta 標籤
-    meta_author = soup.find("meta", attrs={"name": "author"})
-    if meta_author:
-        return meta_author.get("content", "")
-
-    # 嘗試常見的作者 class
+    # 全文：div.article-wrap > article > p
+    content = ""
     for selector in [
-        ".author a",
-        ".author-name",
-        ".post-author a",
-        ".entry-author a",
-        "a[rel='author']",
-        ".byline a",
-    ]:
-        tag = soup.select_one(selector)
-        if tag:
-            return tag.get_text(strip=True)
-
-    # 嘗試 article:author meta
-    og_author = soup.find("meta", property="article:author")
-    if og_author:
-        return og_author.get("content", "")
-
-    return ""
-
-
-def _extract_time(soup: BeautifulSoup) -> str:
-    """從文章頁面提取發布時間。
-
-    Args:
-        soup: BeautifulSoup 物件。
-
-    Returns:
-        發布時間字串。
-    """
-    # 嘗試 time 標籤
-    time_tag = soup.find("time")
-    if time_tag:
-        datetime_attr = time_tag.get("datetime", "")
-        if datetime_attr:
-            return datetime_attr
-        return time_tag.get_text(strip=True)
-
-    # 嘗試 meta 標籤
-    for prop in [
-        "article:published_time",
-        "article:modified_time",
-        "datePublished",
-    ]:
-        meta = soup.find("meta", property=prop)
-        if meta:
-            return meta.get("content", "")
-
-    # 嘗試 post-meta 中的日期文字
-    for selector in [".post-meta", ".entry-meta", ".article-meta", ".date"]:
-        tag = soup.select_one(selector)
-        if tag:
-            return tag.get_text(strip=True)
-
-    return ""
-
-
-def _extract_hashtags(soup: BeautifulSoup) -> str:
-    """從文章頁面提取標籤。
-
-    Args:
-        soup: BeautifulSoup 物件。
-
-    Returns:
-        逗號分隔的標籤字串。
-    """
-    tags = []
-
-    # 嘗試常見的標籤容器
-    for selector in [
-        ".post-tags a",
-        ".entry-tags a",
-        ".tags a",
-        ".tag-links a",
-        ".article-tags a",
-        "a[rel='tag']",
-    ]:
-        elements = soup.select(selector)
-        if elements:
-            tags = [el.get_text(strip=True) for el in elements]
-            break
-
-    # 嘗試 article:tag meta
-    if not tags:
-        meta_tags = soup.find_all("meta", property="article:tag")
-        tags = [m.get("content", "") for m in meta_tags if m.get("content")]
-
-    return ",".join(tags)
-
-
-def _extract_content(soup: BeautifulSoup) -> str:
-    """從文章頁面提取全文內容。
-
-    CTEE 文章內文位於 div.entry-content 容器中，
-    由多個 <p> 標籤組成。
-
-    Args:
-        soup: BeautifulSoup 物件。
-
-    Returns:
-        全文內容字串。
-    """
-    # 嘗試常見的 WordPress 內文容器
-    for selector in [
-        "div.entry-content.clearfix.single-post-content",
+        "div.article-wrap article",
+        "div.article-wrap",
         "div.entry-content",
-        "div.post-content",
-        "div.article-content",
-        "div.content-inner",
     ]:
         container = soup.select_one(selector)
         if container:
-            paragraphs = container.find_all("p")
-            if paragraphs:
-                text = "\n".join(
-                    p.get_text(strip=True) for p in paragraphs
-                    if p.get_text(strip=True)
-                )
-                return text.strip()
+            parts = [
+                p.get_text(strip=True) for p in container.find_all("p")
+                if p.get_text(strip=True)
+                and "剪貼簿" not in p.get_text(strip=True)
+            ]
+            if parts:
+                content = "\n".join(parts).strip()
+                break
 
-    return ""
-
-
-def _get_article_date(article_data: dict) -> "datetime.date | None":
-    """從文章資料中提取日期。
-
-    Args:
-        article_data: parse_article 回傳的字典。
-
-    Returns:
-        日期物件，若無法提取則回傳 None。
-    """
-    time_str = article_data.get("Time", "")
-    if not time_str:
-        return None
-
-    parsed = _parse_date_string(time_str)
-    if parsed:
-        return parsed
-
-    # 嘗試 ISO 格式（datetime 屬性常用的格式）
-    try:
-        return datetime.fromisoformat(
-            time_str.replace("Z", "+00:00")
-        ).date()
-    except (ValueError, TypeError):
-        pass
-
-    return None
+    return {
+        "SubHead": sub_head,
+        "HashTag": ",".join(hashtags),
+        "Content": content,
+    }
 
 
 def ctee_news_crawler(date: str) -> pd.DataFrame:
     """爬取指定日期的 CTEE 股市新聞。
 
     流程：
-    1. 用 cloudscraper 存取 CTEE 台股新聞列表頁
-    2. 解析新聞列表頁的所有文章連結，篩選指定日期的文章
-    3. 逐篇存取文章頁面，擷取完整資訊
-    4. 回傳 DataFrame
+    1. 從首頁 HTML 取得第 1 頁新聞（div.newslist__card）
+    2. 透過 JSON API 取得後續分頁（/api/category/twmarket/{page}）
+    3. 篩選目標日期的文章
+    4. 逐篇爬取文章頁面取得全文
+    5. 回傳 DataFrame
 
     Args:
         date: 日期字串，格式為 'YYYY-MM-DD'。
 
     Returns:
         包含 Date, Time, Author, Head, SubHead, HashTag, url, Content
-        欄位的 DataFrame。若無資料則回傳空的 DataFrame。
+        欄位的 DataFrame。
     """
-    logger.info("Starting CTEE news crawler for date: %s", date)
+    logger.info("開始 CTEE 新聞爬蟲: %s", date)
     scraper = _create_scraper()
-    target_dt = datetime.strptime(date, "%Y-%m-%d").date()
 
-    # 收集候選文章連結
-    candidate_links = []
+    # --- 第 1 頁：從 HTML 取得候選連結 ---
+    candidates_from_html = []
+    try:
+        html = fetch_list_page_html(scraper)
+        html_articles, html_found_older = parse_html_list(html, date)
+        candidates_from_html = html_articles
+        logger.info("首頁 HTML: 找到 %d 篇候選文章", len(html_articles))
+    except Exception as e:
+        logger.warning("取得首頁 HTML 失敗: %s", e)
+        html_found_older = False
 
-    for page_num in range(1, MAX_PAGES + 1):
+    # --- 第 2 頁起：透過 JSON API 取得 ---
+    api_articles = []
+    stop_paging = html_found_older
+
+    for page_num in range(2, MAX_PAGES + 1):
+        if stop_paging:
+            break
         try:
-            html = fetch_list_page(scraper, page_num)
-            articles, found_older = parse_article_links(html, date)
-            candidate_links.extend(articles)
-
-            logger.info(
-                "Page %d: found %d candidate articles",
-                page_num, len(articles),
-            )
-
-            # 如果發現比目標日期更早的文章，停止翻頁
-            if found_older:
-                logger.info(
-                    "Found articles older than %s, stopping pagination",
-                    date,
-                )
+            time.sleep(REQUEST_DELAY)
+            items = fetch_api_page(scraper, page_num)
+            if not items:
+                logger.info("API 第 %d 頁無資料，停止翻頁", page_num)
                 break
 
-            time.sleep(REQUEST_DELAY)
+            matched, found_older = filter_api_articles(items, date)
+            api_articles.extend(matched)
+            logger.info(
+                "API 第 %d 頁: %d/%d 篇符合日期",
+                page_num, len(matched), len(items),
+            )
+
+            if found_older:
+                logger.info("發現更早日期文章，停止翻頁")
+                stop_paging = True
 
         except Exception as e:
-            logger.warning(
-                "Failed to fetch list page %d: %s", page_num, e
-            )
+            logger.warning("取得 API 第 %d 頁失敗: %s", page_num, e)
             break
 
-    if not candidate_links:
-        logger.info("No candidate articles found for date: %s", date)
-        return _gen_empty_df()
-
-    # 去除重複的 URL
-    seen_urls = set()
-    unique_links = []
-    for link in candidate_links:
-        if link["url"] not in seen_urls:
-            seen_urls.add(link["url"])
-            unique_links.append(link)
-
-    logger.info(
-        "Total unique candidate articles: %d", len(unique_links)
-    )
-
-    # 逐篇爬取文章內容
+    # --- 合併候選文章 ---
+    # HTML 候選需要逐篇爬取完整資訊；API 候選已有 metadata
+    all_urls = set()
     results = []
-    for link in unique_links:
+
+    # 處理 API 來源的文章（已有 metadata）
+    for item in api_articles:
+        url = item["url"]
+        if url in all_urls:
+            continue
+        all_urls.add(url)
+
         try:
             time.sleep(REQUEST_DELAY)
-            article_html = fetch_article_page(scraper, link["url"])
-            article_data = parse_article(article_html, link["url"])
+            extra = fetch_article_content(scraper, url)
+            results.append({
+                "Head": item["title"],
+                "SubHead": extra["SubHead"],
+                "Author": item["author"],
+                "Time": item["publishDatetime"],
+                "HashTag": extra["HashTag"],
+                "url": url,
+                "Content": extra["Content"],
+            })
+            logger.info("已解析文章: %s", url)
+        except Exception as e:
+            logger.warning("爬取文章失敗 %s: %s", url, e)
 
-            # 確認文章日期是否符合目標日期
-            article_date = _get_article_date(article_data)
-            if article_date and article_date != target_dt:
-                logger.debug(
-                    "Skipping article (date mismatch): %s (got %s, want %s)",
-                    link["url"], article_date, date,
+    # 處理 HTML 候選（僅有 url + title）
+    for item in candidates_from_html:
+        url = item["url"]
+        if url in all_urls:
+            continue
+        all_urls.add(url)
+
+        try:
+            time.sleep(REQUEST_DELAY)
+            extra = fetch_article_content(scraper, url)
+
+            # 從文章頁面取得作者
+            resp = scraper.get(url)
+            soup = BeautifulSoup(resp.text, "lxml")
+            author = ""
+            meta_author = soup.find("meta", attrs={"name": "author"})
+            if meta_author:
+                author = meta_author.get("content", "")
+
+            # 時間
+            time_str = ""
+            time_tag = soup.find("time")
+            if time_tag:
+                time_str = time_tag.get("datetime", "") or time_tag.get_text(
+                    strip=True
                 )
+
+            # 驗證日期
+            article_date = _parse_date_string(time_str)
+            if not article_date:
+                try:
+                    article_date = datetime.fromisoformat(
+                        time_str.replace("Z", "+00:00")
+                    ).date()
+                except (ValueError, TypeError):
+                    pass
+
+            target_dt = datetime.strptime(date, "%Y-%m-%d").date()
+            if article_date and article_date != target_dt:
+                logger.debug("跳過非目標日期文章: %s", url)
                 continue
 
-            results.append(article_data)
-            logger.info("Successfully parsed article: %s", link["url"])
-
+            results.append({
+                "Head": item["title"],
+                "SubHead": extra["SubHead"],
+                "Author": author,
+                "Time": time_str,
+                "HashTag": extra["HashTag"],
+                "url": url,
+                "Content": extra["Content"],
+            })
+            logger.info("已解析文章: %s", url)
         except Exception as e:
-            logger.warning(
-                "Failed to fetch/parse article %s: %s", link["url"], e
-            )
-            continue
+            logger.warning("爬取文章失敗 %s: %s", url, e)
 
     if not results:
-        logger.info("No articles matched date: %s", date)
+        logger.info("CTEE 新聞 %s 無符合文章", date)
         return _gen_empty_df()
 
     df = pd.DataFrame(results)
     df["Date"] = date
     df["Date"] = pd.to_datetime(df["Date"])
 
-    # 重新排列欄位順序
     columns = [
         "Date", "Time", "Author", "Head", "SubHead",
         "HashTag", "url", "Content",
     ]
     df = df[columns]
 
-    logger.info(
-        "CTEE news crawler completed, articles: %d", len(df)
-    )
+    logger.info("CTEE 新聞爬蟲完成: %d 篇文章", len(df))
     return df
 
 
 def _gen_empty_df() -> pd.DataFrame:
-    """產生 CTEE 新聞爬蟲無資料時的空 DataFrame。
+    """產生空的 CTEE 新聞 DataFrame。
 
     Returns:
         具有正確欄位的空 DataFrame。
