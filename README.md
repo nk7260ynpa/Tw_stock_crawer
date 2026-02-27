@@ -15,6 +15,7 @@
 | MGTS | 融資融券 |
 | TDCC | 集保戶股權分散表（每週更新） |
 | CTEE News | 工商時報台股新聞 |
+| CNYES News | 鉅亨網台股新聞 |
 
 ## 安裝
 
@@ -58,6 +59,9 @@ df_tdcc = tw_crawler.tdcc_crawler("2024-10-15")
 
 # 工商時報台股新聞
 df_ctee = tw_crawler.ctee_news_crawler("2024-10-15")
+
+# 鉅亨網台股新聞
+df_cnyes = tw_crawler.cnyes_news_crawler("2024-10-15")
 ```
 
 ### 方式二：FastAPI Server
@@ -82,6 +86,7 @@ Server 預設運行於 `http://127.0.0.1:6738/`。
 | `GET /mgts` | 融資融券 |
 | `GET /tdcc` | 集保戶股權分散表（僅回傳最新一期） |
 | `GET /ctee_news` | 工商時報台股新聞 |
+| `GET /cnyes_news` | 鉅亨網台股新聞 |
 
 所有 endpoint 皆支援 `?date=YYYY-MM-DD` 參數，不帶參數則預設為當天。
 
@@ -128,6 +133,11 @@ Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）
 - 歷史：`logs/crawler.YYYY-MM-DD.log`
 
 ## CHANGELOG
+
+### v2.3.0
+- 新增 CNYES 鉅亨網台股新聞爬蟲
+- 新增 /cnyes_news API endpoint
+- 新增 markdownify 依賴（用於 HTML 轉 Markdown）
 
 ### v2.2.0
 - 新增 CTEE 工商時報台股新聞爬蟲

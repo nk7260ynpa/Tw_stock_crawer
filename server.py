@@ -200,3 +200,24 @@ def crawl_ctee_news(
     except Exception as e:
         logger.error("CTEE news crawler failed: %s", e)
         return {"date": date, "error": str(e)}
+
+
+@app.get("/cnyes_news")
+def crawl_cnyes_news(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取指定日期的鉅亨網台股新聞。"""
+    date = _get_date(date)
+    logger.info("Starting CNYES news crawler for date: %s", date)
+    try:
+        df = tw_crawler.cnyes_news_crawler(date)
+        logger.info(
+            "CNYES news crawler completed, articles: %d", len(df)
+        )
+        return {"date": date, "data": df.to_dict(orient="records")}
+    except Exception as e:
+        logger.error("CNYES news crawler failed: %s", e)
+        return {"date": date, "error": str(e)}

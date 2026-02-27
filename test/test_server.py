@@ -195,3 +195,43 @@ def test_crawl_ctee_news_failure(mocker: MockerFixture) -> None:
     data = response.json()
     assert "error" in data
     assert data["date"] == "2024-10-29"
+
+
+def test_crawl_cnyes_news(mocker: MockerFixture) -> None:
+    """測試 GET /cnyes_news 回傳鉅亨網新聞資料。"""
+    mock_df = pd.DataFrame({
+        "Date": ["2024-10-29"],
+        "Time": ["08:30:00"],
+        "Author": ["記者李小華"],
+        "Head": ["台積電法說會釋利多"],
+        "HashTag": ["台積電,法說會"],
+        "url": ["https://news.cnyes.com/news/id/5001"],
+        "Content": ["台積電今日召開法說會。"],
+    })
+    mocker.patch(
+        "server.tw_crawler.cnyes_news_crawler",
+        return_value=mock_df,
+    )
+
+    response = client.get("/cnyes_news?date=2024-10-29")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == "2024-10-29"
+    assert len(data["data"]) == 1
+    assert data["data"][0]["Head"] == "台積電法說會釋利多"
+
+
+def test_crawl_cnyes_news_failure(mocker: MockerFixture) -> None:
+    """測試鉅亨網新聞爬蟲失敗時回傳 error。"""
+    mocker.patch(
+        "server.tw_crawler.cnyes_news_crawler",
+        side_effect=RuntimeError("connection error"),
+    )
+
+    response = client.get("/cnyes_news?date=2024-10-29")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data
+    assert data["date"] == "2024-10-29"
