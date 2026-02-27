@@ -7,7 +7,7 @@ with open('README.md', encoding='utf-8') as f:
 
 setup(
     name='tw_crawler',
-    version='v1.4.1',
+    version='v2.2.0',
     description='A crawler for Taiwan stock market data',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -16,6 +16,8 @@ setup(
         'requests',
         'cloudscraper',
         'pandas',
+        'beautifulsoup4',
+        'lxml',
     ],
     author='nk7260ynpa',
     author_email='nk7260ynpa@gmail.com',

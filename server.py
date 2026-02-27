@@ -179,3 +179,24 @@ def crawl_tdcc(
 ) -> dict:
     """爬取集保戶股權分散表資料（僅回傳最新一期）。"""
     return _run_crawler("tdcc", _get_date(date))
+
+
+@app.get("/ctee_news")
+def crawl_ctee_news(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取指定日期的 CTEE 工商時報股市新聞。"""
+    date = _get_date(date)
+    logger.info("Starting CTEE news crawler for date: %s", date)
+    try:
+        df = tw_crawler.ctee_news_crawler(date)
+        logger.info(
+            "CTEE news crawler completed, articles: %d", len(df)
+        )
+        return {"date": date, "data": df.to_dict(orient="records")}
+    except Exception as e:
+        logger.error("CTEE news crawler failed: %s", e)
+        return {"date": date, "error": str(e)}

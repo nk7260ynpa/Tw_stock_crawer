@@ -154,3 +154,44 @@ def test_crawl_single_failure(mocker: MockerFixture) -> None:
     data = response.json()
     assert "error" in data
     assert data["date"] == "2024-10-29"
+
+
+def test_crawl_ctee_news(mocker: MockerFixture) -> None:
+    """測試 GET /ctee_news 回傳 CTEE 新聞資料。"""
+    mock_df = pd.DataFrame({
+        "Date": ["2024-10-29"],
+        "Time": ["2024-10-29T08:30:00+08:00"],
+        "Author": ["記者王小明"],
+        "Head": ["台積電營收創新高"],
+        "SubHead": ["AI需求帶動"],
+        "HashTag": ["台積電,AI"],
+        "url": ["https://www.ctee.com.tw/news/stock/1001.html"],
+        "Content": ["台積電第三季營收數據亮眼。"],
+    })
+    mocker.patch(
+        "server.tw_crawler.ctee_news_crawler",
+        return_value=mock_df,
+    )
+
+    response = client.get("/ctee_news?date=2024-10-29")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == "2024-10-29"
+    assert len(data["data"]) == 1
+    assert data["data"][0]["Head"] == "台積電營收創新高"
+
+
+def test_crawl_ctee_news_failure(mocker: MockerFixture) -> None:
+    """測試 CTEE 新聞爬蟲失敗時回傳 error。"""
+    mocker.patch(
+        "server.tw_crawler.ctee_news_crawler",
+        side_effect=RuntimeError("connection error"),
+    )
+
+    response = client.get("/ctee_news?date=2024-10-29")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data
+    assert data["date"] == "2024-10-29"

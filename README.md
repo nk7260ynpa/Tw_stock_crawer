@@ -14,6 +14,7 @@
 | FAOI | 三大法人買賣超 |
 | MGTS | 融資融券 |
 | TDCC | 集保戶股權分散表（每週更新） |
+| CTEE News | 工商時報台股新聞 |
 
 ## 安裝
 
@@ -54,6 +55,9 @@ df_mgts = tw_crawler.mgts_crawler("2024-10-15")
 
 # 集保戶股權分散表（回傳最新一期資料，date 參數不影響查詢結果）
 df_tdcc = tw_crawler.tdcc_crawler("2024-10-15")
+
+# 工商時報台股新聞
+df_ctee = tw_crawler.ctee_news_crawler("2024-10-15")
 ```
 
 ### 方式二：FastAPI Server
@@ -77,6 +81,7 @@ Server 預設運行於 `http://127.0.0.1:6738/`。
 | `GET /faoi` | 三大法人 |
 | `GET /mgts` | 融資融券 |
 | `GET /tdcc` | 集保戶股權分散表（僅回傳最新一期） |
+| `GET /ctee_news` | 工商時報台股新聞 |
 
 所有 endpoint 皆支援 `?date=YYYY-MM-DD` 參數，不帶參數則預設為當天。
 
@@ -123,6 +128,11 @@ Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）
 - 歷史：`logs/crawler.YYYY-MM-DD.log`
 
 ## CHANGELOG
+
+### v2.2.0
+- 新增 CTEE 工商時報台股新聞爬蟲
+- 新增 /ctee_news API endpoint
+- 新增 beautifulsoup4、lxml 依賴
 
 ### v2.1.0
 - 新增 TDCC 集保戶股權分散表爬蟲
