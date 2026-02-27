@@ -252,29 +252,54 @@ def fetch_article_content(
         url: 文章完整 URL。
 
     Returns:
-        包含 SubHead、HashTag、Content 的字典。
+        包含 SubHead、HashTag、Content、Time、Author 的字典。
     """
     logger.info("取得 CTEE 文章: %s", url)
     response = scraper.get(url)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "lxml")
 
-    # 副標題：og:description
+    # 副標題：.sub-title 元素
     sub_head = ""
-    og_desc = soup.find("meta", property="og:description")
-    if og_desc:
-        sub_head = og_desc.get("content", "")
+    sub_title_el = soup.select_one(".sub-title")
+    if sub_title_el:
+        sub_head = sub_title_el.get_text(strip=True)
 
-    # 標籤
+    # 標籤：li.taglist__item 或 meta[name="keywords"]
     hashtags = []
-    meta_tags = soup.find_all("meta", property="article:tag")
-    hashtags = [m.get("content", "") for m in meta_tags if m.get("content")]
+    tag_items = soup.select("li.taglist__item")
+    if tag_items:
+        hashtags = [t.get_text(strip=True) for t in tag_items
+                    if t.get_text(strip=True)]
     if not hashtags:
-        for sel in [".post-tags a", ".tags a", "a[rel='tag']"]:
-            els = soup.select(sel)
-            if els:
-                hashtags = [e.get_text(strip=True) for e in els]
-                break
+        kw_meta = soup.find("meta", attrs={"name": "keywords"})
+        if kw_meta and kw_meta.get("content"):
+            hashtags = [
+                k.strip() for k in kw_meta["content"].split(",")
+                if k.strip()
+            ]
+
+    # 時間：meta[name="article:published_time"] 或 li.publish-time
+    time_str = ""
+    pub_time_meta = soup.find(
+        "meta", attrs={"name": "article:published_time"}
+    )
+    if pub_time_meta and pub_time_meta.get("content"):
+        time_str = _extract_time(pub_time_meta["content"])
+    if not time_str:
+        time_el = soup.select_one("li.publish-time")
+        if time_el:
+            time_str = time_el.get_text(strip=True)
+
+    # 作者：li.publish-author 或 meta[name="author"]
+    author = ""
+    author_el = soup.select_one("li.publish-author")
+    if author_el:
+        author = author_el.get_text(strip=True)
+    if not author:
+        meta_author = soup.find("meta", attrs={"name": "author"})
+        if meta_author:
+            author = meta_author.get("content", "")
 
     # 全文：div.article-wrap > article > p
     content = ""
@@ -298,6 +323,8 @@ def fetch_article_content(
         "SubHead": sub_head,
         "HashTag": ",".join(hashtags),
         "Content": content,
+        "Time": time_str,
+        "Author": author,
     }
 
 
@@ -366,7 +393,7 @@ def ctee_news_crawler(date: str) -> pd.DataFrame:
     all_urls = set()
     results = []
 
-    # 處理 API 來源的文章（已有 metadata）
+    # 處理 API 來源的文章（已有部分 metadata）
     for item in api_articles:
         url = item["url"]
         if url in all_urls:
@@ -376,11 +403,17 @@ def ctee_news_crawler(date: str) -> pd.DataFrame:
         try:
             time.sleep(REQUEST_DELAY)
             extra = fetch_article_content(scraper, url)
+            # 優先使用文章頁面的時間，API 的 publishDatetime 可能無時間
+            article_time = extra["Time"] or _extract_time(
+                item["publishDatetime"]
+            )
+            # 優先使用文章頁面的作者
+            author = extra["Author"] or item["author"]
             results.append({
                 "Head": item["title"],
                 "SubHead": extra["SubHead"],
-                "Author": item["author"],
-                "Time": _extract_time(item["publishDatetime"]),
+                "Author": author,
+                "Time": article_time,
                 "HashTag": extra["HashTag"],
                 "url": url,
                 "Content": extra["Content"],
@@ -400,42 +433,11 @@ def ctee_news_crawler(date: str) -> pd.DataFrame:
             time.sleep(REQUEST_DELAY)
             extra = fetch_article_content(scraper, url)
 
-            # 從文章頁面取得作者
-            resp = scraper.get(url)
-            soup = BeautifulSoup(resp.text, "lxml")
-            author = ""
-            meta_author = soup.find("meta", attrs={"name": "author"})
-            if meta_author:
-                author = meta_author.get("content", "")
-
-            # 時間
-            time_str = ""
-            time_tag = soup.find("time")
-            if time_tag:
-                time_str = time_tag.get("datetime", "") or time_tag.get_text(
-                    strip=True
-                )
-
-            # 驗證日期
-            article_date = _parse_date_string(time_str)
-            if not article_date:
-                try:
-                    article_date = datetime.fromisoformat(
-                        time_str.replace("Z", "+00:00")
-                    ).date()
-                except (ValueError, TypeError):
-                    pass
-
-            target_dt = datetime.strptime(date, "%Y-%m-%d").date()
-            if article_date and article_date != target_dt:
-                logger.debug("跳過非目標日期文章: %s", url)
-                continue
-
             results.append({
                 "Head": item["title"],
                 "SubHead": extra["SubHead"],
-                "Author": author,
-                "Time": _extract_time(time_str),
+                "Author": extra["Author"],
+                "Time": extra["Time"],
                 "HashTag": extra["HashTag"],
                 "url": url,
                 "Content": extra["Content"],
