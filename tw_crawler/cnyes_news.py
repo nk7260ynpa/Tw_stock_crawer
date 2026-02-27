@@ -4,6 +4,7 @@
 使用 CNYES 公開 JSON API 取得新聞列表與內文。
 """
 
+import html
 import logging
 from datetime import datetime, timezone, timedelta
 
@@ -48,7 +49,10 @@ def _html_to_markdown(html_content: str) -> str:
     """
     if not html_content:
         return ""
-    return md(html_content, strip=["img", "script", "style"]).strip()
+    # CNYES API 回傳的 content 使用 HTML entities 編碼（&lt;p&gt; 而非 <p>），
+    # 需先解碼才能讓 markdownify 正確辨識 HTML 標籤。
+    unescaped = html.unescape(html_content)
+    return md(unescaped, strip=["img", "script", "style"]).strip()
 
 
 def _keywords_to_hashtag(keywords: list) -> str:
