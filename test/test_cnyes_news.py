@@ -383,3 +383,100 @@ def test_cnyes_news_crawler_api_failure(mocker: MockerFixture) -> None:
     df = cnyes_news_crawler("2024-10-15")
 
     assert df.empty
+
+
+# --- 單元測試：時數模式（hours） ---
+
+
+def test_parse_news_items_hours_mode() -> None:
+    """測試時數模式篩選：只保留 cutoff_dt 之後的文章。"""
+    from datetime import datetime, timezone, timedelta
+    TW_TZ = timezone(timedelta(hours=8))
+
+    items = SAMPLE_API_RESPONSE["items"]["data"]
+    # cutoff 設在 2024-10-15 09:00 UTC+8，應只匹配 10:15 的那篇
+    cutoff = datetime(2024, 10, 15, 9, 0, 0, tzinfo=TW_TZ)
+    matched, found_older = parse_news_items(
+        items, "2024-10-15", cutoff_dt=cutoff,
+    )
+
+    assert len(matched) == 1
+    assert matched[0]["Head"] == "聯發科新晶片量產在即"
+    assert matched[0]["Date"] == "2024-10-15"
+    assert matched[0]["Time"] == "10:15:00"
+    assert found_older is True
+
+
+def test_parse_news_items_hours_mode_all_match() -> None:
+    """測試時數模式：所有文章都在 cutoff 之後。"""
+    from datetime import datetime, timezone, timedelta
+    TW_TZ = timezone(timedelta(hours=8))
+
+    items = SAMPLE_API_RESPONSE["items"]["data"]
+    # cutoff 設在 2024-10-14 00:00 UTC+8，所有文章都在之後
+    cutoff = datetime(2024, 10, 14, 0, 0, 0, tzinfo=TW_TZ)
+    matched, found_older = parse_news_items(
+        items, "2024-10-15", cutoff_dt=cutoff,
+    )
+
+    assert len(matched) == 3
+    assert found_older is False
+
+
+def test_parse_news_items_hours_mode_cross_day() -> None:
+    """測試時數模式跨日：cutoff 在前一天，應包含前一天晚上的文章。"""
+    from datetime import datetime, timezone, timedelta
+    TW_TZ = timezone(timedelta(hours=8))
+
+    items = SAMPLE_API_RESPONSE["items"]["data"]
+    # cutoff 設在 2024-10-14 17:00 UTC+8
+    # newsId 5000 的 publishAt 是 2024-10-14 18:00 UTC+8，應被包含
+    cutoff = datetime(2024, 10, 14, 17, 0, 0, tzinfo=TW_TZ)
+    matched, found_older = parse_news_items(
+        items, "2024-10-15", cutoff_dt=cutoff,
+    )
+
+    assert len(matched) == 3
+    # 檢查跨日文章的 Date 欄位應是文章自己的日期
+    dates = {m["Date"] for m in matched}
+    assert "2024-10-14" in dates
+    assert "2024-10-15" in dates
+
+
+def test_cnyes_news_crawler_hours_mode(mocker: MockerFixture) -> None:
+    """測試完整爬蟲流程（時數模式）。"""
+    from datetime import datetime, timezone, timedelta
+    TW_TZ = timezone(timedelta(hours=8))
+
+    # Mock datetime.now 回傳 2024-10-15 12:00 UTC+8
+    mock_now = datetime(2024, 10, 15, 12, 0, 0, tzinfo=TW_TZ)
+    mocker.patch(
+        "tw_crawler.cnyes_news.datetime",
+        wraps=datetime,
+    )
+    mocker.patch(
+        "tw_crawler.cnyes_news.datetime.now",
+        return_value=mock_now,
+    )
+
+    # 使用包含更早文章的 API 回應，這樣 found_older=True 會停止翻頁
+    # hours=4 -> cutoff = 2024-10-15 08:00 UTC+8
+    # newsId 5001 (08:30) 和 5002 (10:15) 在 cutoff 之後
+    # newsId 5000 (10-14 18:00) 在 cutoff 之前 -> 停止翻頁
+    mock_response = mocker.Mock()
+    mock_response.json.return_value = SAMPLE_API_RESPONSE
+    mock_response.raise_for_status = mocker.Mock()
+    mocker.patch(
+        "tw_crawler.cnyes_news.requests.get",
+        return_value=mock_response,
+    )
+
+    df = cnyes_news_crawler("2024-10-15", hours=4)
+
+    assert not df.empty
+    assert len(df) == 2  # 只有 08:30 和 10:15 在 cutoff 之後
+    assert list(df.columns) == [
+        "Date", "Time", "Author", "Head", "HashTag", "url", "Content",
+    ]
+    assert df.iloc[0]["Date"] == "2024-10-15"
+    assert df.iloc[0]["Time"] == "08:30:00"

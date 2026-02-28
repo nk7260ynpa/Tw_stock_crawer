@@ -7,7 +7,7 @@ with open('README.md', encoding='utf-8') as f:
 
 setup(
     name='tw_crawler',
-    version='v2.5.0',
+    version='v2.6.0',
     description='A crawler for Taiwan stock market data',
     long_description=long_description,
     long_description_content_type='text/markdown',

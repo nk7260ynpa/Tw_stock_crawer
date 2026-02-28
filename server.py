@@ -187,16 +187,32 @@ def crawl_ctee_news(
         default=None,
         description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
     ),
+    hours: int = Query(
+        default=None,
+        description="抓取過去幾小時內的新聞（與 date 擇一使用）",
+        ge=1,
+        le=72,
+    ),
 ) -> dict:
-    """爬取指定日期的 CTEE 工商時報股市新聞。"""
+    """爬取 CTEE 工商時報股市新聞。
+
+    支援兩種模式：
+    - date 模式：抓取指定日期的全部新聞
+    - hours 模式：抓取過去 N 小時內的新聞
+    hours 優先於 date，同時指定時以 hours 為準。
+    """
     date = _get_date(date)
-    logger.info("Starting CTEE news crawler for date: %s", date)
+    mode = f"hours={hours}" if hours else f"date={date}"
+    logger.info("Starting CTEE news crawler: %s", mode)
     try:
-        df = tw_crawler.ctee_news_crawler(date)
+        df = tw_crawler.ctee_news_crawler(date, hours=hours)
         logger.info(
             "CTEE news crawler completed, articles: %d", len(df)
         )
-        return {"date": date, "data": df.to_dict(orient="records")}
+        result = {"date": date, "data": df.to_dict(orient="records")}
+        if hours is not None:
+            result["hours"] = hours
+        return result
     except Exception as e:
         logger.error("CTEE news crawler failed: %s", e)
         return {"date": date, "error": str(e)}
@@ -208,16 +224,32 @@ def crawl_cnyes_news(
         default=None,
         description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
     ),
+    hours: int = Query(
+        default=None,
+        description="抓取過去幾小時內的新聞（與 date 擇一使用）",
+        ge=1,
+        le=72,
+    ),
 ) -> dict:
-    """爬取指定日期的鉅亨網台股新聞。"""
+    """爬取鉅亨網台股新聞。
+
+    支援兩種模式：
+    - date 模式：抓取指定日期的全部新聞
+    - hours 模式：抓取過去 N 小時內的新聞
+    hours 優先於 date，同時指定時以 hours 為準。
+    """
     date = _get_date(date)
-    logger.info("Starting CNYES news crawler for date: %s", date)
+    mode = f"hours={hours}" if hours else f"date={date}"
+    logger.info("Starting CNYES news crawler: %s", mode)
     try:
-        df = tw_crawler.cnyes_news_crawler(date)
+        df = tw_crawler.cnyes_news_crawler(date, hours=hours)
         logger.info(
             "CNYES news crawler completed, articles: %d", len(df)
         )
-        return {"date": date, "data": df.to_dict(orient="records")}
+        result = {"date": date, "data": df.to_dict(orient="records")}
+        if hours is not None:
+            result["hours"] = hours
+        return result
     except Exception as e:
         logger.error("CNYES news crawler failed: %s", e)
         return {"date": date, "error": str(e)}
@@ -229,16 +261,32 @@ def crawl_ptt_news(
         default=None,
         description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
     ),
+    hours: int = Query(
+        default=None,
+        description="抓取過去幾小時內的新聞（與 date 擇一使用）",
+        ge=1,
+        le=72,
+    ),
 ) -> dict:
-    """爬取指定日期的 PTT 股版文章。"""
+    """爬取 PTT 股版文章。
+
+    支援兩種模式：
+    - date 模式：抓取指定日期的全部文章
+    - hours 模式：抓取過去 N 小時內的文章
+    hours 優先於 date，同時指定時以 hours 為準。
+    """
     date = _get_date(date)
-    logger.info("Starting PTT news crawler for date: %s", date)
+    mode = f"hours={hours}" if hours else f"date={date}"
+    logger.info("Starting PTT news crawler: %s", mode)
     try:
-        df = tw_crawler.ptt_news_crawler(date)
+        df = tw_crawler.ptt_news_crawler(date, hours=hours)
         logger.info(
             "PTT news crawler completed, articles: %d", len(df)
         )
-        return {"date": date, "data": df.to_dict(orient="records")}
+        result = {"date": date, "data": df.to_dict(orient="records")}
+        if hours is not None:
+            result["hours"] = hours
+        return result
     except Exception as e:
         logger.error("PTT news crawler failed: %s", e)
         return {"date": date, "error": str(e)}
@@ -250,16 +298,32 @@ def crawl_moneyudn_news(
         default=None,
         description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
     ),
+    hours: int = Query(
+        default=None,
+        description="抓取過去幾小時內的新聞（與 date 擇一使用）",
+        ge=1,
+        le=72,
+    ),
 ) -> dict:
-    """爬取指定日期的聯合新聞網經濟日報台股新聞。"""
+    """爬取聯合新聞網經濟日報台股新聞。
+
+    支援兩種模式：
+    - date 模式：抓取指定日期的全部新聞
+    - hours 模式：抓取過去 N 小時內的新聞
+    hours 優先於 date，同時指定時以 hours 為準。
+    """
     date = _get_date(date)
-    logger.info("Starting MoneyUDN news crawler for date: %s", date)
+    mode = f"hours={hours}" if hours else f"date={date}"
+    logger.info("Starting MoneyUDN news crawler: %s", mode)
     try:
-        df = tw_crawler.moneyudn_news_crawler(date)
+        df = tw_crawler.moneyudn_news_crawler(date, hours=hours)
         logger.info(
             "MoneyUDN news crawler completed, articles: %d", len(df)
         )
-        return {"date": date, "data": df.to_dict(orient="records")}
+        result = {"date": date, "data": df.to_dict(orient="records")}
+        if hours is not None:
+            result["hours"] = hours
+        return result
     except Exception as e:
         logger.error("MoneyUDN news crawler failed: %s", e)
         return {"date": date, "error": str(e)}

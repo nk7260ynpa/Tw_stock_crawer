@@ -3,17 +3,24 @@
 提供 PTT Stock 版（批踢踢股票版）文章爬取與處理功能。
 使用 requests + BeautifulSoup 爬取列表頁與文章頁，
 markdownify 將內文轉為 Markdown。
+
+支援兩種模式：
+- 日期模式（date）：抓取指定日期的全部文章
+- 時數模式（hours）：抓取過去 N 小時內的文章，避免排程間隔漏抓
 """
 
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
+
+# 台灣時區 (UTC+8)
+TW_TZ = timezone(timedelta(hours=8))
 
 logger = logging.getLogger(__name__)
 
@@ -191,16 +198,25 @@ def parse_list_articles(
     soup: BeautifulSoup,
     target_date: str,
     target_year: int,
+    cutoff_date: "datetime.date | None" = None,
 ) -> tuple[list[dict], bool]:
-    """從列表頁解析文章資訊，篩選指定日期。
+    """從列表頁解析文章資訊，篩選符合條件的文章。
+
+    支援兩種模式：
+    - 日期模式（cutoff_date=None）：篩選指定日期的文章
+    - 時數模式（cutoff_date 有值）：篩選 cutoff_date 當日及之後的文章
+
+    注意：PTT 列表頁僅有日期（無時間），時數模式下以日期寬鬆篩選，
+    精確時間篩選在文章全文爬取後執行。
 
     Args:
         soup: 列表頁的 BeautifulSoup 物件。
         target_date: 目標日期字串（YYYY-MM-DD）。
         target_year: 目標查詢年份（用於補足 PTT 列表日期的年份）。
+        cutoff_date: 時數模式下的截止日期，篩選此日期（含）之後的文章。
 
     Returns:
-        tuple: (符合目標日期的文章清單, 是否發現比目標日期更早的文章)。
+        tuple: (符合條件的文章清單, 是否發現更早的文章)。
             每篇文章包含 url, title, author 欄位。
     """
     target_dt = datetime.strptime(target_date, "%Y-%m-%d").date()
@@ -242,14 +258,26 @@ def parse_list_articles(
 
             if article_dt:
                 article_date = article_dt.date()
-                if article_date == target_dt:
-                    articles.append({
-                        "url": url,
-                        "title": title,
-                        "author": author,
-                    })
-                elif article_date < target_dt:
-                    found_older = True
+                if cutoff_date is not None:
+                    # 時數模式：篩選 cutoff_date 當日及之後
+                    if article_date >= cutoff_date:
+                        articles.append({
+                            "url": url,
+                            "title": title,
+                            "author": author,
+                        })
+                    elif article_date < cutoff_date:
+                        found_older = True
+                else:
+                    # 日期模式
+                    if article_date == target_dt:
+                        articles.append({
+                            "url": url,
+                            "title": title,
+                            "author": author,
+                        })
+                    elif article_date < target_dt:
+                        found_older = True
             else:
                 # 無法解析日期，保守地納入候選
                 articles.append({
@@ -311,24 +339,47 @@ def fetch_article_detail(
     }
 
 
-def ptt_news_crawler(date: str) -> pd.DataFrame:
-    """爬取指定日期的 PTT 股版文章。
+def ptt_news_crawler(
+    date: str,
+    hours: int | None = None,
+) -> pd.DataFrame:
+    """爬取 PTT 股版文章。
+
+    支援兩種模式：
+    - 日期模式（hours=None）：抓取指定日期的全部文章
+    - 時數模式（hours 有值）：抓取過去 N 小時內的文章
 
     流程：
     1. 從 PTT Stock 版最新頁開始
-    2. 解析列表頁文章，篩選目標日期
+    2. 依模式篩選文章（日期或時間區間）
     3. 逐篇爬取文章頁面取得完整時間與全文
     4. 使用 markdownify 將內文轉為 Markdown
-    5. 遇到比目標日期更早的文章時停止翻頁
+    5. 時數模式下用完整時間做精確篩選
+    6. 遇到超出範圍的更早文章時停止翻頁
 
     Args:
         date: 日期字串，格式為 'YYYY-MM-DD'。
+        hours: 抓取過去幾小時的文章。若為 None 則使用日期模式。
 
     Returns:
         包含 Date, Time, Author, Head, url, Content
-        欄位的 DataFrame。若無該日期文章則回傳空 DataFrame。
+        欄位的 DataFrame。若無符合條件的文章則回傳空 DataFrame。
     """
-    logger.info("開始 PTT 股版爬蟲: %s", date)
+    # 計算時間截止點（時數模式）
+    cutoff_dt = None
+    cutoff_date = None
+    if hours is not None:
+        now = datetime.now(tz=TW_TZ)
+        cutoff_dt = now - timedelta(hours=hours)
+        cutoff_date = cutoff_dt.date()
+        logger.info(
+            "開始 PTT 股版爬蟲（時數模式）: 過去 %d 小時 "
+            "（截止時間: %s）",
+            hours, cutoff_dt.strftime("%Y-%m-%d %H:%M:%S"),
+        )
+    else:
+        logger.info("開始 PTT 股版爬蟲（日期模式）: %s", date)
+
     target_year = datetime.strptime(date, "%Y-%m-%d").year
     session = _create_session()
 
@@ -343,16 +394,16 @@ def ptt_news_crawler(date: str) -> pd.DataFrame:
             break
 
         matched, found_older = parse_list_articles(
-            soup, date, target_year,
+            soup, date, target_year, cutoff_date=cutoff_date,
         )
         all_candidates.extend(matched)
         logger.info(
-            "PTT 列表頁 %s: %d 篇符合日期",
+            "PTT 列表頁 %s: %d 篇符合條件",
             current_url.split("/")[-1], len(matched),
         )
 
         if found_older:
-            logger.info("發現更早日期文章，停止翻頁")
+            logger.info("發現超出範圍的更早文章，停止翻頁")
             break
 
         current_url = prev_url
@@ -360,11 +411,12 @@ def ptt_news_crawler(date: str) -> pd.DataFrame:
             time.sleep(REQUEST_DELAY)
 
     if not all_candidates:
-        logger.info("PTT 股版 %s 無符合文章", date)
+        logger.info("PTT 股版無符合條件的文章")
         return _gen_empty_df()
 
     # 逐篇爬取文章全文
     target_dt = datetime.strptime(date, "%Y-%m-%d").date()
+    naive_cutoff = cutoff_dt.replace(tzinfo=None) if cutoff_dt else None
     results = []
     for candidate in all_candidates:
         url = candidate["url"]
@@ -375,17 +427,33 @@ def ptt_news_crawler(date: str) -> pd.DataFrame:
             time.sleep(REQUEST_DELAY)
             detail = fetch_article_detail(session, url)
 
-            # 用文章頁面的完整時間再次驗證日期
+            # 用文章頁面的完整時間進行篩選
             full_dt = detail.get("full_datetime")
-            if full_dt and full_dt.date() != target_dt:
-                logger.debug(
-                    "文章實際日期 %s 與目標 %s 不符，跳過: %s",
-                    full_dt.date(), target_dt, url,
-                )
-                continue
+            if full_dt:
+                if naive_cutoff is not None:
+                    # 時數模式：精確篩選
+                    if full_dt < naive_cutoff:
+                        logger.debug(
+                            "文章時間 %s 早於截止時間，跳過: %s",
+                            full_dt, url,
+                        )
+                        continue
+                else:
+                    # 日期模式：驗證日期
+                    if full_dt.date() != target_dt:
+                        logger.debug(
+                            "文章實際日期 %s 與目標 %s 不符，跳過: %s",
+                            full_dt.date(), target_dt, url,
+                        )
+                        continue
+
+            # 決定文章日期
+            article_date_str = (
+                full_dt.strftime("%Y-%m-%d") if full_dt else date
+            )
 
             results.append({
-                "Date": date,
+                "Date": article_date_str,
                 "Time": detail["time_str"],
                 "Author": candidate["author"],
                 "Head": candidate["title"],
@@ -397,7 +465,7 @@ def ptt_news_crawler(date: str) -> pd.DataFrame:
             logger.warning("爬取文章失敗 %s: %s", url, e)
 
     if not results:
-        logger.info("PTT 股版 %s 無符合文章（全文解析後）", date)
+        logger.info("PTT 股版無符合條件的文章（全文解析後）")
         return _gen_empty_df()
 
     df = pd.DataFrame(results)

@@ -2,6 +2,10 @@
 
 提供鉅亨網(CNYES)台股新聞文章爬取與處理功能。
 使用 CNYES 公開 JSON API 取得新聞列表與內文。
+
+支援兩種模式：
+- 日期模式（date）：抓取指定日期的全部新聞
+- 時數模式（hours）：抓取過去 N 小時內的新聞，避免排程間隔漏抓
 """
 
 import html
@@ -114,15 +118,21 @@ def fetch_news_page(page: int) -> dict:
 def parse_news_items(
     items: list[dict],
     target_date: str,
+    cutoff_dt: datetime | None = None,
 ) -> tuple[list[dict], bool]:
-    """從 API 回應的新聞列表中篩選指定日期的文章。
+    """從 API 回應的新聞列表中篩選文章。
+
+    支援兩種篩選模式：
+    - 日期模式（cutoff_dt=None）：篩選指定日期的文章
+    - 時數模式（cutoff_dt 有值）：篩選 cutoff_dt 之後的文章
 
     Args:
         items: API 回傳的新聞資料列表。
-        target_date: 目標日期字串（YYYY-MM-DD）。
+        target_date: 目標日期字串（YYYY-MM-DD），日期模式下用於精確篩選。
+        cutoff_dt: 時間截止點（含時區），時數模式下篩選此時間之後的文章。
 
     Returns:
-        tuple: (符合目標日期的文章清單, 是否發現比目標日期更早的文章)。
+        tuple: (符合條件的文章清單, 是否發現超出範圍的更早文章)。
             文章清單中每筆資料包含 Date, Time, Author, Head, HashTag,
             url, Content 欄位。
     """
@@ -137,43 +147,88 @@ def parse_news_items(
             continue
 
         article_dt = _timestamp_to_tw_datetime(publish_at)
-        article_date = article_dt.date()
 
-        if article_date == target_dt:
-            news_id = item.get("newsId", 0)
-            matched.append({
-                "Date": target_date,
-                "Time": article_dt.strftime("%H:%M:%S"),
-                "Author": item.get("author", "") or "",
-                "Head": item.get("title", ""),
-                "HashTag": _keywords_to_hashtag(item.get("keyword", [])),
-                "url": _build_article_url(news_id),
-                "Content": _html_to_markdown(item.get("content", "")),
-            })
-        elif article_date < target_dt:
-            found_older = True
+        if cutoff_dt is not None:
+            # 時數模式：篩選 cutoff_dt 之後的文章
+            if article_dt >= cutoff_dt:
+                news_id = item.get("newsId", 0)
+                matched.append({
+                    "Date": article_dt.strftime("%Y-%m-%d"),
+                    "Time": article_dt.strftime("%H:%M:%S"),
+                    "Author": item.get("author", "") or "",
+                    "Head": item.get("title", ""),
+                    "HashTag": _keywords_to_hashtag(
+                        item.get("keyword", [])
+                    ),
+                    "url": _build_article_url(news_id),
+                    "Content": _html_to_markdown(
+                        item.get("content", "")
+                    ),
+                })
+            else:
+                found_older = True
+        else:
+            # 日期模式：篩選指定日期的文章
+            article_date = article_dt.date()
+            if article_date == target_dt:
+                news_id = item.get("newsId", 0)
+                matched.append({
+                    "Date": target_date,
+                    "Time": article_dt.strftime("%H:%M:%S"),
+                    "Author": item.get("author", "") or "",
+                    "Head": item.get("title", ""),
+                    "HashTag": _keywords_to_hashtag(
+                        item.get("keyword", [])
+                    ),
+                    "url": _build_article_url(news_id),
+                    "Content": _html_to_markdown(
+                        item.get("content", "")
+                    ),
+                })
+            elif article_date < target_dt:
+                found_older = True
 
     return matched, found_older
 
 
-def cnyes_news_crawler(date: str) -> pd.DataFrame:
-    """爬取指定日期的鉅亨網台股新聞。
+def cnyes_news_crawler(
+    date: str,
+    hours: int | None = None,
+) -> pd.DataFrame:
+    """爬取鉅亨網台股新聞。
+
+    支援兩種模式：
+    - 日期模式（hours=None）：抓取指定日期的全部新聞
+    - 時數模式（hours 有值）：抓取過去 N 小時內的新聞
 
     流程：
     1. 從第 1 頁開始呼叫 CNYES JSON API
-    2. 篩選目標日期的文章
+    2. 依模式篩選文章（日期或時間區間）
     3. 使用 markdownify 將 HTML content 轉為 Markdown
-    4. 遇到比目標日期更早的文章時停止翻頁
+    4. 遇到超出範圍的更早文章時停止翻頁
     5. 回傳 DataFrame
 
     Args:
         date: 日期字串，格式為 'YYYY-MM-DD'。
+        hours: 抓取過去幾小時的新聞。若為 None 則使用日期模式。
 
     Returns:
         包含 Date, Time, Author, Head, HashTag, url, Content
-        欄位的 DataFrame。若無該日期新聞則回傳空 DataFrame。
+        欄位的 DataFrame。若無符合條件的新聞則回傳空 DataFrame。
     """
-    logger.info("開始 CNYES 新聞爬蟲: %s", date)
+    # 計算時間截止點（時數模式）
+    cutoff_dt = None
+    if hours is not None:
+        now = datetime.now(tz=TW_TZ)
+        cutoff_dt = now - timedelta(hours=hours)
+        logger.info(
+            "開始 CNYES 新聞爬蟲（時數模式）: 過去 %d 小時 "
+            "（截止時間: %s）",
+            hours, cutoff_dt.strftime("%Y-%m-%d %H:%M:%S"),
+        )
+    else:
+        logger.info("開始 CNYES 新聞爬蟲（日期模式）: %s", date)
+
     all_articles = []
     page = 1
     last_page = 1  # 先設為 1，後續從 API 回應更新
@@ -197,21 +252,23 @@ def cnyes_news_crawler(date: str) -> pd.DataFrame:
             last_page = items_data.get("last_page", 1)
             logger.info("CNYES API 共 %d 頁", last_page)
 
-        matched, found_older = parse_news_items(news_list, date)
+        matched, found_older = parse_news_items(
+            news_list, date, cutoff_dt=cutoff_dt,
+        )
         all_articles.extend(matched)
         logger.info(
-            "CNYES API 第 %d 頁: %d/%d 篇符合日期",
+            "CNYES API 第 %d 頁: %d/%d 篇符合條件",
             page, len(matched), len(news_list),
         )
 
         if found_older:
-            logger.info("發現更早日期文章，停止翻頁")
+            logger.info("發現超出範圍的更早文章，停止翻頁")
             break
 
         page += 1
 
     if not all_articles:
-        logger.info("CNYES 新聞 %s 無符合文章", date)
+        logger.info("CNYES 新聞無符合條件的文章")
         return _gen_empty_df()
 
     df = pd.DataFrame(all_articles)

@@ -313,3 +313,113 @@ def test_crawl_moneyudn_news_failure(mocker: MockerFixture) -> None:
     data = response.json()
     assert "error" in data
     assert data["date"] == "2024-10-29"
+
+
+# --- 時數模式（hours 參數）測試 ---
+
+
+def _mock_news_df(date: str, hours: int | None = None) -> pd.DataFrame:
+    """建立假的新聞爬蟲回傳 DataFrame。"""
+    return pd.DataFrame({
+        "Date": [date],
+        "Time": ["14:30:00"],
+        "Author": ["記者"],
+        "Head": ["測試新聞"],
+        "url": ["https://example.com/news/1"],
+        "Content": ["測試內容"],
+    })
+
+
+def test_crawl_ctee_news_with_hours(mocker: MockerFixture) -> None:
+    """測試 GET /ctee_news?hours=24 回傳含 hours 欄位。"""
+    mocker.patch(
+        "server.tw_crawler.ctee_news_crawler",
+        side_effect=_mock_news_df,
+    )
+
+    response = client.get("/ctee_news?hours=24")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["hours"] == 24
+    assert len(data["data"]) == 1
+
+
+def test_crawl_cnyes_news_with_hours(mocker: MockerFixture) -> None:
+    """測試 GET /cnyes_news?hours=24 回傳含 hours 欄位。"""
+    mocker.patch(
+        "server.tw_crawler.cnyes_news_crawler",
+        side_effect=_mock_news_df,
+    )
+
+    response = client.get("/cnyes_news?hours=24")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["hours"] == 24
+    assert len(data["data"]) == 1
+
+
+def test_crawl_ptt_news_with_hours(mocker: MockerFixture) -> None:
+    """測試 GET /ptt_news?hours=24 回傳含 hours 欄位。"""
+    mocker.patch(
+        "server.tw_crawler.ptt_news_crawler",
+        side_effect=_mock_news_df,
+    )
+
+    response = client.get("/ptt_news?hours=24")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["hours"] == 24
+    assert len(data["data"]) == 1
+
+
+def test_crawl_moneyudn_news_with_hours(mocker: MockerFixture) -> None:
+    """測試 GET /moneyudn_news?hours=24 回傳含 hours 欄位。"""
+    mocker.patch(
+        "server.tw_crawler.moneyudn_news_crawler",
+        side_effect=_mock_news_df,
+    )
+
+    response = client.get("/moneyudn_news?hours=24")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["hours"] == 24
+    assert len(data["data"]) == 1
+
+
+def test_crawl_news_hours_validation() -> None:
+    """測試 hours 參數驗證（範圍 1-72）。"""
+    response = client.get("/cnyes_news?hours=0")
+    assert response.status_code == 422  # FastAPI validation error
+
+    response = client.get("/cnyes_news?hours=73")
+    assert response.status_code == 422
+
+
+def test_crawl_news_without_hours_no_hours_field(
+    mocker: MockerFixture,
+) -> None:
+    """測試不帶 hours 參數時回傳不含 hours 欄位。"""
+    mock_df = pd.DataFrame({
+        "Date": ["2024-10-29"],
+        "Time": ["08:30:00"],
+        "Author": ["記者"],
+        "Head": ["測試新聞"],
+        "HashTag": ["測試"],
+        "url": ["https://example.com/news/1"],
+        "Content": ["測試內容"],
+    })
+    mocker.patch(
+        "server.tw_crawler.cnyes_news_crawler",
+        return_value=mock_df,
+    )
+
+    response = client.get("/cnyes_news?date=2024-10-29")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "hours" not in data
+    assert data["date"] == "2024-10-29"

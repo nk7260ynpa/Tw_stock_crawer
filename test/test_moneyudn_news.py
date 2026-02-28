@@ -790,3 +790,126 @@ def test_max_list_pages_constant() -> None:
     """測試 MAX_LIST_PAGES 常數存在且為合理數值。"""
     assert MAX_LIST_PAGES >= 1
     assert MAX_LIST_PAGES <= 20
+
+
+# --- 單元測試：時數模式（hours） ---
+
+
+def test_collect_candidates_hours_mode(mocker: MockerFixture) -> None:
+    """測試時數模式：用完整時間篩選而非日期。
+
+    注意：MoneyUDN 列表頁文章按時間降序排列（最新在前），
+    當遇到比 cutoff 更早的文章時停止。
+    """
+    from datetime import datetime, timezone, timedelta
+    TW_TZ = timezone(timedelta(hours=8))
+
+    mock_page = mocker.Mock()
+    mock_page.text = SAMPLE_LIST_HTML
+    mock_page.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.return_value = mock_page
+
+    mocker.patch("tw_crawler.moneyudn_news.time.sleep")
+    mocker.patch("tw_crawler.moneyudn_news.random.uniform", return_value=1.5)
+
+    target = datetime.strptime("2026-02-27", "%Y-%m-%d").date()
+    # cutoff = 2026-02-27 07:00 UTC+8
+    # 第 1 篇 08:30 和第 2 篇 10:15 都在 cutoff 之後
+    # 第 3 篇 02-26 18:00 在 cutoff 之前 -> 停止
+    cutoff = datetime(2026, 2, 27, 7, 0, 0, tzinfo=TW_TZ)
+    candidates = _collect_candidates_from_pages(
+        mock_session, target, cutoff_dt=cutoff,
+    )
+
+    assert len(candidates) == 2
+    assert candidates[0]["name"] == "台積電法說會釋利多 外資連買三日"
+    assert candidates[1]["name"] == "聯發科新晶片量產在即"
+
+
+def test_collect_candidates_hours_mode_cross_day(
+    mocker: MockerFixture,
+) -> None:
+    """測試時數模式跨日：包含前一天晚上的文章。"""
+    from datetime import datetime, timezone, timedelta
+    TW_TZ = timezone(timedelta(hours=8))
+
+    mock_page = mocker.Mock()
+    mock_page.text = SAMPLE_LIST_HTML
+    mock_page.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.return_value = mock_page
+
+    mocker.patch("tw_crawler.moneyudn_news.time.sleep")
+    mocker.patch("tw_crawler.moneyudn_news.random.uniform", return_value=1.5)
+
+    target = datetime.strptime("2026-02-27", "%Y-%m-%d").date()
+    # cutoff = 2026-02-26 17:00 UTC+8
+    # 第 3 篇 02-26 18:00 在 cutoff 之後，應被包含
+    cutoff = datetime(2026, 2, 26, 17, 0, 0, tzinfo=TW_TZ)
+    candidates = _collect_candidates_from_pages(
+        mock_session, target, cutoff_dt=cutoff,
+    )
+
+    assert len(candidates) == 3
+    # 檢查跨日文章有正確的 date_str
+    dates = {c["date_str"] for c in candidates}
+    assert "2026-02-26" in dates
+    assert "2026-02-27" in dates
+
+
+def test_moneyudn_news_crawler_hours_mode(mocker: MockerFixture) -> None:
+    """測試完整爬蟲流程（時數模式）。"""
+    from datetime import datetime, timezone, timedelta
+    TW_TZ = timezone(timedelta(hours=8))
+
+    # Mock datetime.now 回傳 2026-02-27 22:00 UTC+8
+    mock_now = datetime(2026, 2, 27, 22, 0, 0, tzinfo=TW_TZ)
+    mocker.patch(
+        "tw_crawler.moneyudn_news.datetime",
+        wraps=datetime,
+    )
+    mocker.patch(
+        "tw_crawler.moneyudn_news.datetime.now",
+        return_value=mock_now,
+    )
+
+    # Mock 列表頁
+    mock_list_response = mocker.Mock()
+    mock_list_response.text = SAMPLE_LIST_HTML
+    mock_list_response.raise_for_status = mocker.Mock()
+
+    # Mock 文章頁
+    mock_article_response = mocker.Mock()
+    mock_article_response.text = SAMPLE_ARTICLE_HTML
+    mock_article_response.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.side_effect = [
+        mock_list_response,       # 列表頁
+        mock_article_response,    # 第 1 篇文章
+        mock_article_response,    # 第 2 篇文章
+        mock_article_response,    # 第 3 篇文章（跨日）
+    ]
+    mock_session.headers = dict(DEFAULT_HEADERS)
+
+    mocker.patch(
+        "tw_crawler.moneyudn_news._create_session",
+        return_value=mock_session,
+    )
+    mocker.patch("tw_crawler.moneyudn_news.time.sleep")
+    mocker.patch(
+        "tw_crawler.moneyudn_news.random.uniform",
+        return_value=1.5,
+    )
+
+    # hours=24 -> cutoff = 2026-02-26 22:00，應包含所有 3 篇
+    # （因為最舊的是 02-26 18:00，早於 cutoff，所以只包含 2 篇）
+    df = moneyudn_news_crawler("2026-02-27", hours=24)
+
+    assert not df.empty
+    assert list(df.columns) == [
+        "Date", "Time", "Author", "Head", "url", "Content",
+    ]

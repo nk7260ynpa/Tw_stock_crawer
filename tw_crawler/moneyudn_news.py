@@ -3,18 +3,25 @@
 提供 MoneyUDN（聯合新聞網-經濟日報）台股新聞文章爬取與處理功能。
 使用 requests + BeautifulSoup 解析列表頁 JSON-LD 結構化資料，
 markdownify 將文章內文（含圖片）轉為 Markdown。
+
+支援兩種模式：
+- 日期模式（date）：抓取指定日期的全部新聞
+- 時數模式（hours）：抓取過去 N 小時內的新聞，避免排程間隔漏抓
 """
 
 import json
 import logging
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
+
+# 台灣時區 (UTC+8)
+TW_TZ = timezone(timedelta(hours=8))
 
 logger = logging.getLogger(__name__)
 
@@ -266,18 +273,23 @@ def _fetch_article_content(session: requests.Session, url: str) -> str:
 def _collect_candidates_from_pages(
     session: requests.Session,
     target_date: "date",
+    cutoff_dt: datetime | None = None,
 ) -> list[dict]:
-    """從多頁列表中收集目標日期的所有文章候選。
+    """從多頁列表中收集符合條件的所有文章候選。
 
-    逐頁爬取 /rank/newest/ 列表，篩選目標日期的文章，
-    當頁面中出現早於目標日期的文章時停止翻頁。
+    支援兩種模式：
+    - 日期模式（cutoff_dt=None）：篩選目標日期的文章
+    - 時數模式（cutoff_dt 有值）：篩選 cutoff_dt 之後的文章
+
+    逐頁爬取 /rank/newest/ 列表，當發現超出範圍的文章時停止翻頁。
 
     Args:
         session: 已設定 headers 的 requests Session。
-        target_date: 目標日期物件。
+        target_date: 目標日期物件（日期模式使用）。
+        cutoff_dt: 時數模式的截止時間點，篩選此時間之後的文章。
 
     Returns:
-        目標日期的文章候選清單。
+        符合條件的文章候選清單。
     """
     candidates = []
     seen_urls = set()
@@ -308,12 +320,27 @@ def _collect_candidates_from_pages(
             if published_dt is None:
                 continue
 
-            if published_dt.date() < target_date:
-                passed_target = True
-                break
+            if cutoff_dt is not None:
+                # 時數模式：比對完整時間
+                # 需處理 aware vs naive datetime
+                pub_naive = (
+                    published_dt.replace(tzinfo=None)
+                    if published_dt.tzinfo
+                    else published_dt
+                )
+                cutoff_naive = cutoff_dt.replace(tzinfo=None)
 
-            if published_dt.date() != target_date:
-                continue
+                if pub_naive < cutoff_naive:
+                    passed_target = True
+                    break
+            else:
+                # 日期模式
+                if published_dt.date() < target_date:
+                    passed_target = True
+                    break
+
+                if published_dt.date() != target_date:
+                    continue
 
             url_raw = article.get("url", "")
             if not url_raw:
@@ -331,43 +358,66 @@ def _collect_candidates_from_pages(
                 "url": full_url,
                 "author": _extract_author(article),
                 "time_str": published_dt.strftime("%H:%M:%S"),
+                "date_str": published_dt.strftime("%Y-%m-%d"),
             })
 
         if passed_target:
-            logger.info("列表頁 %d 已超過目標日期，停止翻頁", page)
+            logger.info("列表頁 %d 已超過範圍，停止翻頁", page)
             break
 
     return candidates
 
 
-def moneyudn_news_crawler(date: str) -> pd.DataFrame:
-    """爬取指定日期的聯合新聞網經濟日報台股新聞。
+def moneyudn_news_crawler(
+    date: str,
+    hours: int | None = None,
+) -> pd.DataFrame:
+    """爬取聯合新聞網經濟日報台股新聞。
+
+    支援兩種模式：
+    - 日期模式（hours=None）：抓取指定日期的全部新聞
+    - 時數模式（hours 有值）：抓取過去 N 小時內的新聞
 
     流程：
     1. 逐頁爬取最新文章列表，解析 JSON-LD 取得文章清單
-    2. 根據 datePublished 篩選目標日期的文章，超過目標日期則停止
+    2. 依模式篩選文章（日期或時間區間）
     3. 逐篇爬取文章內頁，用 markdownify 轉為含圖片的 Markdown
     4. 文章間加入隨機延遲以避免被封鎖
 
     Args:
         date: 日期字串，格式為 'YYYY-MM-DD'。
+        hours: 抓取過去幾小時的新聞。若為 None 則使用日期模式。
 
     Returns:
         包含 Date, Time, Author, Head, url, Content
-        欄位的 DataFrame。若無該日期文章則回傳空 DataFrame。
+        欄位的 DataFrame。若無符合條件的文章則回傳空 DataFrame。
     """
-    logger.info("開始 MoneyUDN 新聞爬蟲: %s", date)
+    # 計算時間截止點（時數模式）
+    cutoff_dt = None
+    if hours is not None:
+        now = datetime.now(tz=TW_TZ)
+        cutoff_dt = now - timedelta(hours=hours)
+        logger.info(
+            "開始 MoneyUDN 新聞爬蟲（時數模式）: 過去 %d 小時 "
+            "（截止時間: %s）",
+            hours, cutoff_dt.strftime("%Y-%m-%d %H:%M:%S"),
+        )
+    else:
+        logger.info("開始 MoneyUDN 新聞爬蟲（日期模式）: %s", date)
+
     target_date = datetime.strptime(date, "%Y-%m-%d").date()
     session = _create_session()
 
-    # 步驟 1+2：逐頁取得列表並篩選目標日期文章
-    candidates = _collect_candidates_from_pages(session, target_date)
+    # 步驟 1+2：逐頁取得列表並篩選文章
+    candidates = _collect_candidates_from_pages(
+        session, target_date, cutoff_dt=cutoff_dt,
+    )
 
     if not candidates:
-        logger.info("MoneyUDN %s 無符合日期的文章", date)
+        logger.info("MoneyUDN 無符合條件的文章")
         return _gen_empty_df()
 
-    logger.info("MoneyUDN %s 共 %d 篇符合日期", date, len(candidates))
+    logger.info("MoneyUDN 共 %d 篇符合條件", len(candidates))
 
     # 步驟 3：逐篇爬取文章全文
     results = []
@@ -381,8 +431,11 @@ def moneyudn_news_crawler(date: str) -> pd.DataFrame:
 
             content = _fetch_article_content(session, url)
 
+            # 使用文章自身的日期（時數模式下可能跨日）
+            article_date = candidate.get("date_str", date)
+
             results.append({
-                "Date": date,
+                "Date": article_date,
                 "Time": candidate["time_str"],
                 "Author": candidate["author"],
                 "Head": candidate["name"],
@@ -394,7 +447,7 @@ def moneyudn_news_crawler(date: str) -> pd.DataFrame:
             logger.warning("爬取文章失敗 %s: %s", url, e)
 
     if not results:
-        logger.info("MoneyUDN %s 無符合文章（全文解析後）", date)
+        logger.info("MoneyUDN 無符合條件的文章（全文解析後）")
         return _gen_empty_df()
 
     df = pd.DataFrame(results)

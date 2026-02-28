@@ -59,17 +59,20 @@ df_mgts = tw_crawler.mgts_crawler("2024-10-15")
 # 集保戶股權分散表（回傳最新一期資料，date 參數不影響查詢結果）
 df_tdcc = tw_crawler.tdcc_crawler("2024-10-15")
 
-# 工商時報台股新聞
+# 工商時報台股新聞（日期模式）
 df_ctee = tw_crawler.ctee_news_crawler("2024-10-15")
 
-# 鉅亨網台股新聞
+# 鉅亨網台股新聞（日期模式）
 df_cnyes = tw_crawler.cnyes_news_crawler("2024-10-15")
 
-# PTT 股版文章
+# PTT 股版文章（日期模式）
 df_ptt = tw_crawler.ptt_news_crawler("2024-10-15")
 
-# 聯合新聞網經濟日報台股新聞
+# 聯合新聞網經濟日報台股新聞（日期模式）
 df_moneyudn = tw_crawler.moneyudn_news_crawler("2024-10-15")
+
+# 新聞爬蟲支援「時數模式」——抓取過去 N 小時的新聞
+df_cnyes_24h = tw_crawler.cnyes_news_crawler("2024-10-15", hours=24)
 ```
 
 ### 方式二：FastAPI Server
@@ -100,6 +103,8 @@ Server 預設運行於 `http://127.0.0.1:6738/`。
 
 所有 endpoint 皆支援 `?date=YYYY-MM-DD` 參數，不帶參數則預設為當天。
 
+新聞端點（`/ctee_news`、`/cnyes_news`、`/ptt_news`、`/moneyudn_news`）額外支援 `?hours=N` 參數（1-72），可抓取過去 N 小時內的新聞，避免排程間隔漏抓。`hours` 優先於 `date`，同時指定時以 `hours` 為準。
+
 > **注意**：TDCC 集保資料由 API 固定回傳最新一期（通常每週五更新），`date` 參數不影響查詢結果。
 
 #### 請求範例
@@ -113,6 +118,10 @@ data = response.json()
 
 # 爬取當天所有資料
 response = requests.get("http://127.0.0.1:6738/")
+data = response.json()
+
+# 爬取過去 24 小時的鉅亨網新聞
+response = requests.get("http://127.0.0.1:6738/cnyes_news?hours=24")
 data = response.json()
 ```
 
@@ -143,6 +152,12 @@ Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）
 - 歷史：`logs/crawler.YYYY-MM-DD.log`
 
 ## CHANGELOG
+
+### v2.6.0
+- 新聞爬蟲新增「時數模式」（`hours` 參數），支援抓取過去 N 小時內的新聞
+- 四個新聞 API 端點（/ctee_news, /cnyes_news, /ptt_news, /moneyudn_news）新增 `?hours=N` 查詢參數
+- 時數模式下文章 Date 欄位使用文章自身的發布日期（可能跨日）
+- 向下相容：不帶 hours 參數時行為與原來完全相同
 
 ### v2.5.0
 - 新增 MoneyUDN 聯合新聞網經濟日報台股新聞爬蟲（requests + BeautifulSoup + markdownify）

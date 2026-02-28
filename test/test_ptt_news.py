@@ -611,3 +611,176 @@ def test_ptt_news_crawler_date_verify_skips_wrong_date(
 
     # 文章實際日期 2/26 與目標 2/27 不符，應被跳過
     assert df.empty
+
+
+# --- 單元測試：時數模式（hours） ---
+
+
+def test_parse_list_articles_hours_mode() -> None:
+    """測試時數模式篩選：cutoff_date 當日及之後的文章。"""
+    from datetime import date
+    soup = BeautifulSoup(SAMPLE_LIST_HTML, "lxml")
+
+    # cutoff_date = 2026-02-27，應包含 2/27 的 2 篇，排除 2/26
+    matched, found_older = parse_list_articles(
+        soup, "2026-02-27", 2026, cutoff_date=date(2026, 2, 27),
+    )
+
+    assert len(matched) == 2
+    assert found_older is True
+
+
+def test_parse_list_articles_hours_mode_cross_day() -> None:
+    """測試時數模式跨日：cutoff_date 在前一天。"""
+    from datetime import date
+    soup = BeautifulSoup(SAMPLE_LIST_HTML, "lxml")
+
+    # cutoff_date = 2026-02-26，應包含所有 2/26 和 2/27 的文章
+    matched, found_older = parse_list_articles(
+        soup, "2026-02-27", 2026, cutoff_date=date(2026, 2, 26),
+    )
+
+    # 應包含 2/27 的 2 篇 + 2/26 的 1 篇 = 3 篇
+    assert len(matched) == 3
+    assert found_older is False
+
+
+def test_ptt_news_crawler_hours_mode(mocker: MockerFixture) -> None:
+    """測試完整爬蟲流程（時數模式）。"""
+    from datetime import datetime as dt_cls, timezone, timedelta
+    TW_TZ = timezone(timedelta(hours=8))
+
+    # Mock datetime.now 回傳 2026-02-27 22:00 UTC+8
+    mock_now = dt_cls(2026, 2, 27, 22, 0, 0, tzinfo=TW_TZ)
+    mocker.patch(
+        "tw_crawler.ptt_news.datetime",
+        wraps=dt_cls,
+    )
+    mocker.patch(
+        "tw_crawler.ptt_news.datetime.now",
+        return_value=mock_now,
+    )
+
+    # Mock 列表頁
+    mock_list_response = mocker.Mock()
+    mock_list_response.text = SAMPLE_LIST_HTML
+    mock_list_response.raise_for_status = mocker.Mock()
+
+    # Mock 文章頁（時間是 2026-02-27 14:30，在 cutoff 之後）
+    mock_article_response = mocker.Mock()
+    mock_article_response.text = SAMPLE_ARTICLE_HTML
+    mock_article_response.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.side_effect = [
+        mock_list_response,      # 列表頁
+        mock_article_response,   # 第 1 篇文章
+        mock_article_response,   # 第 2 篇文章
+    ]
+    mock_session.cookies = mocker.Mock()
+    mock_session.cookies.get.return_value = "1"
+    mock_session.headers = {}
+
+    mocker.patch(
+        "tw_crawler.ptt_news._create_session",
+        return_value=mock_session,
+    )
+    mocker.patch("tw_crawler.ptt_news.time.sleep")
+
+    # hours=24 -> cutoff = 2026-02-26 22:00 UTC+8
+    df = ptt_news_crawler("2026-02-27", hours=24)
+
+    assert not df.empty
+    assert list(df.columns) == [
+        "Date", "Time", "Author", "Head", "url", "Content",
+    ]
+    # 文章的 Date 應是文章自身的日期
+    assert df.iloc[0]["Date"] == "2026-02-27"
+
+
+def test_ptt_news_crawler_hours_mode_filters_old(
+    mocker: MockerFixture,
+) -> None:
+    """測試時數模式精確篩選：文章實際時間早於 cutoff 被跳過。"""
+    from datetime import datetime as dt_cls, timezone, timedelta
+    TW_TZ = timezone(timedelta(hours=8))
+
+    # Mock datetime.now 回傳 2026-02-27 15:00 UTC+8
+    mock_now = dt_cls(2026, 2, 27, 15, 0, 0, tzinfo=TW_TZ)
+    mocker.patch(
+        "tw_crawler.ptt_news.datetime",
+        wraps=dt_cls,
+    )
+    mocker.patch(
+        "tw_crawler.ptt_news.datetime.now",
+        return_value=mock_now,
+    )
+
+    # 簡化列表頁，只有一篇文章
+    list_html = """
+    <html><body>
+    <div class="r-ent">
+        <div class="title"><a href="/bbs/stock/M.1.A.B01.html">
+        [新聞] 老文章</a></div>
+        <div class="meta">
+            <div class="author">author1</div>
+            <div class="date"> 2/27</div>
+        </div>
+    </div>
+    <div class="r-ent">
+        <div class="title"><a href="/bbs/stock/M.2.A.B01.html">
+        [新聞] 舊文</a></div>
+        <div class="meta">
+            <div class="author">old</div>
+            <div class="date"> 2/26</div>
+        </div>
+    </div>
+    </body></html>
+    """
+    # 文章頁面時間是 2026-02-27 06:00（cutoff=14:00，早於 cutoff）
+    old_article = """
+    <html><body>
+    <div id="main-content">
+        <div class="article-metaline">
+            <span class="article-meta-tag">作者</span>
+            <span class="article-meta-value">author1</span>
+        </div>
+        <div class="article-metaline">
+            <span class="article-meta-tag">標題</span>
+            <span class="article-meta-value">[新聞] 老文章</span>
+        </div>
+        <div class="article-metaline">
+            <span class="article-meta-tag">時間</span>
+            <span class="article-meta-value">Fri Feb 27 06:00:00 2026</span>
+        </div>
+    文章內容。
+    </div>
+    </body></html>
+    """
+    mock_list_response = mocker.Mock()
+    mock_list_response.text = list_html
+    mock_list_response.raise_for_status = mocker.Mock()
+
+    mock_article_response = mocker.Mock()
+    mock_article_response.text = old_article
+    mock_article_response.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.side_effect = [
+        mock_list_response,
+        mock_article_response,
+    ]
+    mock_session.cookies = mocker.Mock()
+    mock_session.cookies.get.return_value = "1"
+    mock_session.headers = {}
+
+    mocker.patch(
+        "tw_crawler.ptt_news._create_session",
+        return_value=mock_session,
+    )
+    mocker.patch("tw_crawler.ptt_news.time.sleep")
+
+    # hours=1 -> cutoff = 2026-02-27 14:00，文章 06:00 早於 cutoff
+    df = ptt_news_crawler("2026-02-27", hours=1)
+
+    assert df.empty

@@ -2,17 +2,24 @@
 
 提供工商時報(CTEE)台股新聞文章爬取與處理功能。
 使用 CTEE JSON API 取得新聞列表，cloudscraper 爬取文章全文。
+
+支援兩種模式：
+- 日期模式（date）：抓取指定日期的全部新聞
+- 時數模式（hours）：抓取過去 N 小時內的新聞，避免排程間隔漏抓
 """
 
 import json
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 import cloudscraper
 import pandas as pd
 from bs4 import BeautifulSoup
+
+# 台灣時區 (UTC+8)
+TW_TZ = timezone(timedelta(hours=8))
 
 logger = logging.getLogger(__name__)
 
@@ -123,15 +130,27 @@ def fetch_list_page_html(
     return response.text
 
 
-def parse_html_list(html: str, target_date: str) -> tuple[list[dict], bool]:
-    """從首頁 HTML 解析文章，篩選指定日期。
+def parse_html_list(
+    html: str,
+    target_date: str,
+    cutoff_date: "datetime.date | None" = None,
+) -> tuple[list[dict], bool]:
+    """從首頁 HTML 解析文章，篩選符合條件的文章。
+
+    支援兩種模式：
+    - 日期模式（cutoff_date=None）：篩選指定日期的文章
+    - 時數模式（cutoff_date 有值）：篩選 cutoff_date 當日及之後的文章
+
+    注意：HTML 列表頁僅有日期（無時間），時數模式下以日期寬鬆篩選，
+    精確時間篩選在文章全文爬取後執行。
 
     Args:
         html: 列表頁 HTML 字串。
         target_date: 目標日期字串（YYYY-MM-DD）。
+        cutoff_date: 時數模式下的截止日期，篩選此日期（含）之後的文章。
 
     Returns:
-        tuple: (符合目標日期的文章清單, 是否發現更早日期)。
+        tuple: (符合條件的文章清單, 是否發現更早的文章)。
     """
     soup = BeautifulSoup(html, "lxml")
     articles = []
@@ -156,13 +175,24 @@ def parse_html_list(html: str, target_date: str) -> tuple[list[dict], bool]:
             time_tag.get_text(strip=True)
         ) if time_tag else None
 
-        if article_date:
-            if article_date == target_dt:
+        if cutoff_date is not None:
+            # 時數模式：篩選 cutoff_date 當日及之後的文章
+            if article_date:
+                if article_date >= cutoff_date:
+                    articles.append({"url": url, "title": title})
+                else:
+                    found_older = True
+            else:
                 articles.append({"url": url, "title": title})
-            elif article_date < target_dt:
-                found_older = True
         else:
-            articles.append({"url": url, "title": title})
+            # 日期模式：篩選指定日期的文章
+            if article_date:
+                if article_date == target_dt:
+                    articles.append({"url": url, "title": title})
+                elif article_date < target_dt:
+                    found_older = True
+            else:
+                articles.append({"url": url, "title": title})
 
     return articles, found_older
 
@@ -191,27 +221,36 @@ def fetch_api_page(
 def filter_api_articles(
     api_items: list[dict],
     target_date: str,
+    cutoff_dt: datetime | None = None,
 ) -> tuple[list[dict], bool]:
-    """從 JSON API 回應中篩選指定日期的文章。
+    """從 JSON API 回應中篩選符合條件的文章。
+
+    支援兩種模式：
+    - 日期模式（cutoff_dt=None）：篩選指定日期的文章
+    - 時數模式（cutoff_dt 有值）：篩選 cutoff_dt 之後的文章
 
     Args:
         api_items: API 回傳的文章列表。
         target_date: 目標日期字串（YYYY-MM-DD）。
+        cutoff_dt: 時數模式的截止時間點，篩選此時間之後的文章。
 
     Returns:
-        tuple: (符合日期的文章, 是否發現更早日期)。
+        tuple: (符合條件的文章, 是否發現更早的文章)。
     """
     target_dt = datetime.strptime(target_date, "%Y-%m-%d").date()
+    cutoff_date = cutoff_dt.date() if cutoff_dt else None
     matched = []
     found_older = False
 
     for item in api_items:
         # publishDatetime 格式: "2026-02-26T18:48:12"
         pub_dt_str = item.get("publishDatetime", "")
+        article_datetime = None
         article_date = None
         if pub_dt_str:
             try:
-                article_date = datetime.fromisoformat(pub_dt_str).date()
+                article_datetime = datetime.fromisoformat(pub_dt_str)
+                article_date = article_datetime.date()
             except (ValueError, TypeError):
                 pass
 
@@ -222,7 +261,27 @@ def filter_api_articles(
             )
 
         if article_date:
-            if article_date == target_dt:
+            is_match = False
+            if cutoff_dt is not None:
+                # 時數模式
+                if article_datetime is not None:
+                    # 有完整時間可做精確比較（注意 naive vs aware）
+                    naive_cutoff = cutoff_dt.replace(tzinfo=None)
+                    is_match = article_datetime >= naive_cutoff
+                    if not is_match:
+                        found_older = True
+                elif cutoff_date is not None:
+                    # 只有日期，用日期寬鬆篩選
+                    is_match = article_date >= cutoff_date
+                    if not is_match:
+                        found_older = True
+            else:
+                # 日期模式
+                is_match = article_date == target_dt
+                if article_date < target_dt:
+                    found_older = True
+
+            if is_match:
                 href = item.get("hyperLink", "")
                 url = (
                     "https://www.ctee.com.tw" + href
@@ -234,9 +293,8 @@ def filter_api_articles(
                     "publishDatetime": pub_dt_str,
                     "content_preview": item.get("content", ""),
                     "url": url,
+                    "article_date": article_date,
                 })
-            elif article_date < target_dt:
-                found_older = True
 
     return matched, found_older
 
@@ -328,31 +386,80 @@ def fetch_article_content(
     }
 
 
-def ctee_news_crawler(date: str) -> pd.DataFrame:
-    """爬取指定日期的 CTEE 股市新聞。
+def _parse_article_datetime(time_str: str, fallback_date: str) -> datetime:
+    """從文章頁面取得的時間字串解析完整 datetime。
+
+    Args:
+        time_str: 時間字串（HH:MM:SS 或類似格式）。
+        fallback_date: 備用日期字串（YYYY-MM-DD），當 time_str 不含日期時使用。
+
+    Returns:
+        完整的 datetime 物件。若無法解析則回傳 None。
+    """
+    if not time_str:
+        return None
+    try:
+        time_obj = datetime.strptime(time_str.split("+")[0], "%H:%M:%S")
+        date_obj = datetime.strptime(fallback_date, "%Y-%m-%d")
+        return date_obj.replace(
+            hour=time_obj.hour,
+            minute=time_obj.minute,
+            second=time_obj.second,
+        )
+    except (ValueError, TypeError):
+        return None
+
+
+def ctee_news_crawler(
+    date: str,
+    hours: int | None = None,
+) -> pd.DataFrame:
+    """爬取 CTEE 股市新聞。
+
+    支援兩種模式：
+    - 日期模式（hours=None）：抓取指定日期的全部新聞
+    - 時數模式（hours 有值）：抓取過去 N 小時內的新聞
 
     流程：
     1. 從首頁 HTML 取得第 1 頁新聞（div.newslist__card）
     2. 透過 JSON API 取得後續分頁（/api/category/twmarket/{page}）
-    3. 篩選目標日期的文章
+    3. 依模式篩選文章
     4. 逐篇爬取文章頁面取得全文
-    5. 回傳 DataFrame
+    5. 時數模式下再次用文章頁面時間做精確篩選
+    6. 回傳 DataFrame
 
     Args:
         date: 日期字串，格式為 'YYYY-MM-DD'。
+        hours: 抓取過去幾小時的新聞。若為 None 則使用日期模式。
 
     Returns:
         包含 Date, Time, Author, Head, SubHead, HashTag, url, Content
         欄位的 DataFrame。
     """
-    logger.info("開始 CTEE 新聞爬蟲: %s", date)
+    # 計算時間截止點（時數模式）
+    cutoff_dt = None
+    cutoff_date = None
+    if hours is not None:
+        now = datetime.now(tz=TW_TZ)
+        cutoff_dt = now - timedelta(hours=hours)
+        cutoff_date = cutoff_dt.date()
+        logger.info(
+            "開始 CTEE 新聞爬蟲（時數模式）: 過去 %d 小時 "
+            "（截止時間: %s）",
+            hours, cutoff_dt.strftime("%Y-%m-%d %H:%M:%S"),
+        )
+    else:
+        logger.info("開始 CTEE 新聞爬蟲（日期模式）: %s", date)
+
     scraper = _create_scraper()
 
     # --- 第 1 頁：從 HTML 取得候選連結 ---
     candidates_from_html = []
     try:
         html = fetch_list_page_html(scraper)
-        html_articles, html_found_older = parse_html_list(html, date)
+        html_articles, html_found_older = parse_html_list(
+            html, date, cutoff_date=cutoff_date,
+        )
         candidates_from_html = html_articles
         logger.info("首頁 HTML: 找到 %d 篇候選文章", len(html_articles))
     except Exception as e:
@@ -373,15 +480,17 @@ def ctee_news_crawler(date: str) -> pd.DataFrame:
                 logger.info("API 第 %d 頁無資料，停止翻頁", page_num)
                 break
 
-            matched, found_older = filter_api_articles(items, date)
+            matched, found_older = filter_api_articles(
+                items, date, cutoff_dt=cutoff_dt,
+            )
             api_articles.extend(matched)
             logger.info(
-                "API 第 %d 頁: %d/%d 篇符合日期",
+                "API 第 %d 頁: %d/%d 篇符合條件",
                 page_num, len(matched), len(items),
             )
 
             if found_older:
-                logger.info("發現更早日期文章，停止翻頁")
+                logger.info("發現超出範圍的更早文章，停止翻頁")
                 stop_paging = True
 
         except Exception as e:
@@ -392,6 +501,9 @@ def ctee_news_crawler(date: str) -> pd.DataFrame:
     # HTML 候選需要逐篇爬取完整資訊；API 候選已有 metadata
     all_urls = set()
     results = []
+
+    # 時數模式下的 naive cutoff（用於與文章頁面時間比對）
+    naive_cutoff = cutoff_dt.replace(tzinfo=None) if cutoff_dt else None
 
     # 處理 API 來源的文章（已有部分 metadata）
     for item in api_articles:
@@ -409,7 +521,27 @@ def ctee_news_crawler(date: str) -> pd.DataFrame:
             )
             # 優先使用文章頁面的作者
             author = extra["Author"] or item["author"]
+
+            # 決定此文章的日期
+            article_date_str = (
+                item.get("article_date").strftime("%Y-%m-%d")
+                if item.get("article_date") else date
+            )
+
+            # 時數模式下用文章頁面時間做精確篩選
+            if naive_cutoff and article_time:
+                art_dt = _parse_article_datetime(
+                    article_time, article_date_str,
+                )
+                if art_dt and art_dt < naive_cutoff:
+                    logger.debug(
+                        "文章時間 %s 早於截止時間，跳過: %s",
+                        art_dt, url,
+                    )
+                    continue
+
             results.append({
+                "Date": article_date_str,
                 "Head": item["title"],
                 "SubHead": extra["SubHead"],
                 "Author": author,
@@ -433,7 +565,26 @@ def ctee_news_crawler(date: str) -> pd.DataFrame:
             time.sleep(REQUEST_DELAY)
             extra = fetch_article_content(scraper, url)
 
+            # 時數模式下用文章頁面時間做精確篩選
+            article_time = extra["Time"]
+            if naive_cutoff and article_time:
+                art_dt = _parse_article_datetime(article_time, date)
+                if art_dt and art_dt < naive_cutoff:
+                    logger.debug(
+                        "文章時間 %s 早於截止時間，跳過: %s",
+                        art_dt, url,
+                    )
+                    continue
+
+            # 嘗試從 meta 取得文章日期
+            article_date_str = date
+            if cutoff_dt is not None:
+                # 時數模式下嘗試從文章頁面推斷實際日期
+                # 暫時使用查詢日期，因 HTML 候選無精確日期
+                pass
+
             results.append({
+                "Date": article_date_str,
                 "Head": item["title"],
                 "SubHead": extra["SubHead"],
                 "Author": extra["Author"],
@@ -447,11 +598,10 @@ def ctee_news_crawler(date: str) -> pd.DataFrame:
             logger.warning("爬取文章失敗 %s: %s", url, e)
 
     if not results:
-        logger.info("CTEE 新聞 %s 無符合文章", date)
+        logger.info("CTEE 新聞無符合條件的文章")
         return _gen_empty_df()
 
     df = pd.DataFrame(results)
-    df["Date"] = date
     # 空字串 Time 轉為 None（MySQL TIME 欄位不接受空字串）
     df["Time"] = df["Time"].replace("", None)
 
