@@ -177,10 +177,44 @@ def _extract_author(article: dict) -> str:
     return str(author)
 
 
+def _extract_hero_image(soup: BeautifulSoup) -> str:
+    """提取文章主圖（hero image）為 Markdown 格式。
+
+    UDN 文章的主圖位於 article_body 外部的 <figure class="article-image">
+    標籤中，需要額外提取。
+
+    Args:
+        soup: 文章頁面的 BeautifulSoup 物件。
+
+    Returns:
+        主圖的 Markdown 字串（如 ``![caption](url)``），若無主圖則回傳空字串。
+    """
+    figure = soup.find("figure", class_="article-image")
+    if not figure:
+        return ""
+
+    img = figure.find("img")
+    if not img:
+        return ""
+
+    src = img.get("src", "") or img.get("data-src", "")
+    if not src:
+        return ""
+
+    # 取得圖說（figcaption）
+    caption = ""
+    figcaption = figure.find("figcaption")
+    if figcaption:
+        caption = figcaption.get_text(strip=True)
+
+    return f"![{caption}]({src})"
+
+
 def _fetch_article_content(session: requests.Session, url: str) -> str:
     """爬取文章內頁並提取全文為含圖片的 Markdown。
 
-    從文章頁面的 section#article_body（class=article-body__editor）提取內文，
+    從文章頁面的 <figure class="article-image"> 提取主圖，
+    從 section#article_body（class=article-body__editor）提取內文，
     使用 markdownify 轉換，保留圖片為 ![alt](src) 格式。
 
     Args:
@@ -188,7 +222,7 @@ def _fetch_article_content(session: requests.Session, url: str) -> str:
         url: 文章完整 URL。
 
     Returns:
-        Markdown 格式的文章全文，若無法提取則回傳空字串。
+        Markdown 格式的文章全文（含主圖），若無法提取則回傳空字串。
 
     Raises:
         requests.RequestException: 當 HTTP 請求失敗時。
@@ -199,13 +233,16 @@ def _fetch_article_content(session: requests.Session, url: str) -> str:
 
     soup = BeautifulSoup(response.text, "lxml")
 
+    # 提取主圖（位於 article_body 外部的 figure.article-image）
+    hero_image = _extract_hero_image(soup)
+
     # 尋找文章內容容器（UDN 使用 section 而非 div）
     article_body = soup.find(id="article_body")
     if not article_body:
         article_body = soup.find("section", class_="article-body__editor")
     if not article_body:
         logger.warning("文章頁面找不到 article-body: %s", url)
-        return ""
+        return hero_image if hero_image else ""
 
     # 移除廣告區塊和不必要的元素
     for ad in article_body.find_all("div", class_="edn-ads--inlineAds"):
@@ -214,12 +251,16 @@ def _fetch_article_content(session: requests.Session, url: str) -> str:
         tag.decompose()
 
     # 使用 markdownify 轉換，保留圖片但移除 script 和 style
-    content = md(
+    body_content = md(
         str(article_body),
         strip=["script", "style"],
     ).strip()
 
-    return content
+    # 主圖放在內文最前面
+    if hero_image:
+        return f"{hero_image}\n\n{body_content}"
+
+    return body_content
 
 
 def _collect_candidates_from_pages(

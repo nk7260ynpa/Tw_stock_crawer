@@ -12,6 +12,7 @@ from tw_crawler.moneyudn_news import (
     _collect_candidates_from_pages,
     _create_session,
     _extract_author,
+    _extract_hero_image,
     _fetch_article_content,
     _gen_empty_df,
     _parse_list_page,
@@ -140,6 +141,41 @@ SAMPLE_ARTICLE_HTML = """
         <figcaption>台積電與輝達合作照。聯合報系資料照</figcaption>
     </figure>
     <p>預計下季度營收將持續成長。</p>
+</div>
+</body>
+</html>
+"""
+
+SAMPLE_ARTICLE_HTML_WITH_HERO = """
+<html>
+<body>
+<figure class="article-image">
+    <a data-fancybox="gallery" href="https://pgw.udn.com.tw/gw/photo.php?u=test_hero.jpg">
+        <picture>
+            <img src="https://pgw.udn.com.tw/gw/photo.php?u=test_hero.jpg&w=441"
+                 alt="主圖">
+        </picture>
+    </a>
+    <figcaption>這是主圖圖說。聯合報系資料照</figcaption>
+</figure>
+<section id="article_body" class="article-body__editor">
+    <p>文章內容第一段。</p>
+    <p>文章內容第二段。</p>
+</section>
+</body>
+</html>
+"""
+
+SAMPLE_ARTICLE_HTML_HERO_ONLY = """
+<html>
+<body>
+<figure class="article-image">
+    <img src="https://pgw.udn.com.tw/gw/photo.php?u=hero_only.jpg"
+         alt="主圖">
+    <figcaption>僅有主圖</figcaption>
+</figure>
+<div class="other-content">
+    <p>這不是文章內容。</p>
 </div>
 </body>
 </html>
@@ -346,8 +382,68 @@ def test_fetch_article_content_success(mocker: MockerFixture) -> None:
     assert "pgw.udn.com.tw" in content
 
 
+def test_extract_hero_image_with_figure() -> None:
+    """測試從 figure.article-image 提取主圖。"""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(SAMPLE_ARTICLE_HTML_WITH_HERO, "lxml")
+    result = _extract_hero_image(soup)
+    assert "![" in result
+    assert "test_hero.jpg" in result
+    assert "這是主圖圖說" in result
+
+
+def test_extract_hero_image_no_figure() -> None:
+    """測試無 figure.article-image 時回傳空字串。"""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(SAMPLE_ARTICLE_HTML, "lxml")
+    result = _extract_hero_image(soup)
+    assert result == ""
+
+
+def test_fetch_article_content_with_hero(mocker: MockerFixture) -> None:
+    """測試文章含主圖時，主圖放在內文最前面。"""
+    mock_response = mocker.Mock()
+    mock_response.text = SAMPLE_ARTICLE_HTML_WITH_HERO
+    mock_response.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.return_value = mock_response
+
+    content = _fetch_article_content(
+        mock_session,
+        "https://money.udn.com/money/story/5612/9348922",
+    )
+
+    # 主圖應在最前面
+    assert content.startswith("![")
+    assert "test_hero.jpg" in content
+    # 內文也要有
+    assert "文章內容第一段" in content
+    assert "文章內容第二段" in content
+
+
+def test_fetch_article_content_hero_only_no_body(
+    mocker: MockerFixture,
+) -> None:
+    """測試僅有主圖無 article_body 時仍回傳主圖。"""
+    mock_response = mocker.Mock()
+    mock_response.text = SAMPLE_ARTICLE_HTML_HERO_ONLY
+    mock_response.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.return_value = mock_response
+
+    content = _fetch_article_content(
+        mock_session,
+        "https://money.udn.com/money/story/5612/9348922",
+    )
+
+    assert "hero_only.jpg" in content
+    assert "僅有主圖" in content
+
+
 def test_fetch_article_content_no_body(mocker: MockerFixture) -> None:
-    """測試文章頁面無 article-body 時回傳空字串。"""
+    """測試文章頁面無 article-body 且無主圖時回傳空字串。"""
     mock_response = mocker.Mock()
     mock_response.text = SAMPLE_ARTICLE_HTML_NO_BODY
     mock_response.raise_for_status = mocker.Mock()
