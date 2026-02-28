@@ -7,7 +7,9 @@ from pytest_mock import MockerFixture
 
 from tw_crawler.moneyudn_news import (
     DEFAULT_HEADERS,
+    MAX_LIST_PAGES,
     _build_full_url,
+    _collect_candidates_from_pages,
     _create_session,
     _extract_author,
     _fetch_article_content,
@@ -538,3 +540,157 @@ def test_moneyudn_news_crawler_date_filter() -> None:
     assert len(matched) == 2
     assert matched[0]["name"] == "台積電法說會釋利多 外資連買三日"
     assert matched[1]["name"] == "聯發科新晶片量產在即"
+
+
+# --- 單元測試：_collect_candidates_from_pages（分頁） ---
+
+
+# 第二頁 HTML：含目標日期文章及更舊的文章
+SAMPLE_LIST_HTML_PAGE2 = """
+<html>
+<head>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "ItemList",
+            "itemListOrder": "ItemListOrderDescending",
+            "numberOfItems": 2,
+            "itemListElement": [
+                {
+                    "@type": "ListItem",
+                    "position": 1,
+                    "item": {
+                        "@type": "NewsArticle",
+                        "url": "/money/story/5612/9348800",
+                        "name": "第二頁第一篇文章",
+                        "datePublished": "2026-02-27T06:00:00+08:00",
+                        "author": {"@type": "Person", "name": "記者王五"}
+                    }
+                },
+                {
+                    "@type": "ListItem",
+                    "position": 2,
+                    "item": {
+                        "@type": "NewsArticle",
+                        "url": "/money/story/5612/9348700",
+                        "name": "前一天的舊文章",
+                        "datePublished": "2026-02-26T12:00:00+08:00",
+                        "author": {"@type": "Person", "name": "記者趙六"}
+                    }
+                }
+            ]
+        }
+    ]
+}
+</script>
+</head>
+<body></body>
+</html>
+"""
+
+
+def test_collect_candidates_multi_page(mocker: MockerFixture) -> None:
+    """測試分頁收集：跨兩頁收集目標日期文章。"""
+    from datetime import datetime
+
+    mock_page1 = mocker.Mock()
+    mock_page1.text = SAMPLE_LIST_HTML  # 2 篇 02-27 + 1 篇 02-26
+    mock_page1.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.return_value = mock_page1
+
+    mocker.patch("tw_crawler.moneyudn_news.time.sleep")
+    mocker.patch("tw_crawler.moneyudn_news.random.uniform", return_value=1.5)
+
+    target = datetime.strptime("2026-02-27", "%Y-%m-%d").date()
+    candidates = _collect_candidates_from_pages(mock_session, target)
+
+    # 第一頁有 2 篇 02-27 + 1 篇 02-26（觸發停止），只需翻 1 頁
+    assert len(candidates) == 2
+    assert candidates[0]["name"] == "台積電法說會釋利多 外資連買三日"
+    assert candidates[1]["name"] == "聯發科新晶片量產在即"
+    # 只呼叫了 1 次 session.get（第 1 頁）
+    assert mock_session.get.call_count == 1
+
+
+def test_collect_candidates_needs_page2(mocker: MockerFixture) -> None:
+    """測試分頁收集：第一頁全部是目標日期，需翻第二頁。"""
+    from datetime import datetime
+
+    # 第一頁：只有目標日期文章（沒有更舊的 → 需要翻頁）
+    page1_html = """
+    <html><head>
+    <script type="application/ld+json">
+    {"@graph": [{"@type": "ItemList", "itemListElement": [
+        {"@type": "ListItem", "item": {
+            "@type": "NewsArticle",
+            "url": "/money/story/5612/9348922",
+            "name": "第一頁文章A",
+            "datePublished": "2026-02-27T20:00:00+08:00",
+            "author": {"@type": "Person", "name": "記者A"}
+        }},
+        {"@type": "ListItem", "item": {
+            "@type": "NewsArticle",
+            "url": "/money/story/5612/9348921",
+            "name": "第一頁文章B",
+            "datePublished": "2026-02-27T18:00:00+08:00",
+            "author": {"@type": "Person", "name": "記者B"}
+        }}
+    ]}]}
+    </script></head><body></body></html>
+    """
+    mock_page1 = mocker.Mock()
+    mock_page1.text = page1_html
+    mock_page1.raise_for_status = mocker.Mock()
+
+    mock_page2 = mocker.Mock()
+    mock_page2.text = SAMPLE_LIST_HTML_PAGE2  # 1 篇 02-27 + 1 篇 02-26
+    mock_page2.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.side_effect = [mock_page1, mock_page2]
+
+    mocker.patch("tw_crawler.moneyudn_news.time.sleep")
+    mocker.patch("tw_crawler.moneyudn_news.random.uniform", return_value=1.5)
+
+    target = datetime.strptime("2026-02-27", "%Y-%m-%d").date()
+    candidates = _collect_candidates_from_pages(mock_session, target)
+
+    # 第一頁 2 篇 + 第二頁 1 篇 = 3 篇
+    assert len(candidates) == 3
+    assert candidates[0]["name"] == "第一頁文章A"
+    assert candidates[1]["name"] == "第一頁文章B"
+    assert candidates[2]["name"] == "第二頁第一篇文章"
+    # 呼叫了 2 次 session.get（第 1 頁 + 第 2 頁）
+    assert mock_session.get.call_count == 2
+
+
+def test_collect_candidates_dedup_urls(mocker: MockerFixture) -> None:
+    """測試分頁收集：重複 URL 自動去重。"""
+    from datetime import datetime
+
+    mock_page = mocker.Mock()
+    mock_page.text = SAMPLE_LIST_HTML
+    mock_page.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.return_value = mock_page
+
+    mocker.patch("tw_crawler.moneyudn_news.time.sleep")
+    mocker.patch("tw_crawler.moneyudn_news.random.uniform", return_value=1.5)
+
+    target = datetime.strptime("2026-02-27", "%Y-%m-%d").date()
+    candidates = _collect_candidates_from_pages(mock_session, target)
+
+    # 即使重複呼叫，URL 相同的文章不會重複
+    urls = [c["url"] for c in candidates]
+    assert len(urls) == len(set(urls))
+
+
+def test_max_list_pages_constant() -> None:
+    """測試 MAX_LIST_PAGES 常數存在且為合理數值。"""
+    assert MAX_LIST_PAGES >= 1
+    assert MAX_LIST_PAGES <= 20

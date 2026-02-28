@@ -18,8 +18,10 @@ from markdownify import markdownify as md
 
 logger = logging.getLogger(__name__)
 
-# MoneyUDN 經濟日報熱門排行榜 URL
-MONEYUDN_LIST_URL = "https://money.udn.com/rank/pv/1001/5591/1"
+# MoneyUDN 經濟日報最新文章列表 URL（支援分頁，{page} 由程式替換）
+MONEYUDN_LIST_URL_TEMPLATE = (
+    "https://money.udn.com/rank/newest/1001/5591/{page}"
+)
 
 # MoneyUDN 基礎 URL
 MONEYUDN_BASE_URL = "https://money.udn.com"
@@ -30,6 +32,9 @@ REQUEST_TIMEOUT = 30
 # 文章間延遲範圍（秒）
 REQUEST_DELAY_MIN = 1.0
 REQUEST_DELAY_MAX = 2.0
+
+# 列表頁最大翻頁數（避免無限爬取）
+MAX_LIST_PAGES = 10
 
 # HTTP 請求 headers
 DEFAULT_HEADERS = {
@@ -217,12 +222,89 @@ def _fetch_article_content(session: requests.Session, url: str) -> str:
     return content
 
 
+def _collect_candidates_from_pages(
+    session: requests.Session,
+    target_date: "date",
+) -> list[dict]:
+    """從多頁列表中收集目標日期的所有文章候選。
+
+    逐頁爬取 /rank/newest/ 列表，篩選目標日期的文章，
+    當頁面中出現早於目標日期的文章時停止翻頁。
+
+    Args:
+        session: 已設定 headers 的 requests Session。
+        target_date: 目標日期物件。
+
+    Returns:
+        目標日期的文章候選清單。
+    """
+    candidates = []
+    seen_urls = set()
+
+    for page in range(1, MAX_LIST_PAGES + 1):
+        url = MONEYUDN_LIST_URL_TEMPLATE.format(page=page)
+        logger.info("取得 MoneyUDN 列表頁 %d: %s", page, url)
+
+        try:
+            if page > 1:
+                time.sleep(random.uniform(REQUEST_DELAY_MIN, REQUEST_DELAY_MAX))
+            response = session.get(url, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            logger.error("取得 MoneyUDN 列表頁 %d 失敗: %s", page, e)
+            break
+
+        articles = _parse_list_page(response.text)
+        if not articles:
+            logger.info("MoneyUDN 列表頁 %d 無文章資料，停止翻頁", page)
+            break
+
+        passed_target = False
+        for article in articles:
+            date_published = article.get("datePublished", "")
+            published_dt = _parse_published_date(date_published)
+
+            if published_dt is None:
+                continue
+
+            if published_dt.date() < target_date:
+                passed_target = True
+                break
+
+            if published_dt.date() != target_date:
+                continue
+
+            url_raw = article.get("url", "")
+            if not url_raw:
+                continue
+
+            full_url = _build_full_url(url_raw)
+            if full_url in seen_urls:
+                continue
+            seen_urls.add(full_url)
+
+            candidates.append({
+                "name": (
+                    article.get("name", "") or article.get("headline", "")
+                ),
+                "url": full_url,
+                "author": _extract_author(article),
+                "time_str": published_dt.strftime("%H:%M:%S"),
+            })
+
+        if passed_target:
+            logger.info("列表頁 %d 已超過目標日期，停止翻頁", page)
+            break
+
+    return candidates
+
+
 def moneyudn_news_crawler(date: str) -> pd.DataFrame:
     """爬取指定日期的聯合新聞網經濟日報台股新聞。
 
     流程：
-    1. 爬取列表頁，解析 JSON-LD 取得文章列表
-    2. 根據 datePublished 篩選目標日期的文章
+    1. 逐頁爬取最新文章列表，解析 JSON-LD 取得文章清單
+    2. 根據 datePublished 篩選目標日期的文章，超過目標日期則停止
     3. 逐篇爬取文章內頁，用 markdownify 轉為含圖片的 Markdown
     4. 文章間加入隨機延遲以避免被封鎖
 
@@ -237,49 +319,8 @@ def moneyudn_news_crawler(date: str) -> pd.DataFrame:
     target_date = datetime.strptime(date, "%Y-%m-%d").date()
     session = _create_session()
 
-    # 步驟 1：取得列表頁
-    try:
-        logger.info("取得 MoneyUDN 列表頁: %s", MONEYUDN_LIST_URL)
-        response = session.get(MONEYUDN_LIST_URL, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
-    except requests.RequestException as e:
-        logger.error("取得 MoneyUDN 列表頁失敗: %s", e)
-        return _gen_empty_df()
-
-    # 步驟 2：解析 JSON-LD 取得文章列表
-    articles = _parse_list_page(response.text)
-    if not articles:
-        logger.info("MoneyUDN 列表頁無文章資料")
-        return _gen_empty_df()
-
-    logger.info("MoneyUDN 列表頁共 %d 篇文章", len(articles))
-
-    # 步驟 3：篩選目標日期的文章
-    candidates = []
-    for article in articles:
-        date_published = article.get("datePublished", "")
-        published_dt = _parse_published_date(date_published)
-
-        if published_dt is None:
-            logger.warning(
-                "文章缺少有效的 datePublished: %s",
-                article.get("name", "unknown"),
-            )
-            continue
-
-        if published_dt.date() != target_date:
-            continue
-
-        url_raw = article.get("url", "")
-        if not url_raw:
-            continue
-
-        candidates.append({
-            "name": article.get("name", "") or article.get("headline", ""),
-            "url": _build_full_url(url_raw),
-            "author": _extract_author(article),
-            "time_str": published_dt.strftime("%H:%M:%S"),
-        })
+    # 步驟 1+2：逐頁取得列表並篩選目標日期文章
+    candidates = _collect_candidates_from_pages(session, target_date)
 
     if not candidates:
         logger.info("MoneyUDN %s 無符合日期的文章", date)
@@ -287,7 +328,7 @@ def moneyudn_news_crawler(date: str) -> pd.DataFrame:
 
     logger.info("MoneyUDN %s 共 %d 篇符合日期", date, len(candidates))
 
-    # 步驟 4：逐篇爬取文章全文
+    # 步驟 3：逐篇爬取文章全文
     results = []
     for i, candidate in enumerate(candidates):
         url = candidate["url"]
