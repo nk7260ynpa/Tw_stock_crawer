@@ -242,3 +242,24 @@ def crawl_ptt_news(
     except Exception as e:
         logger.error("PTT news crawler failed: %s", e)
         return {"date": date, "error": str(e)}
+
+
+@app.get("/moneyudn_news")
+def crawl_moneyudn_news(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取指定日期的聯合新聞網經濟日報台股新聞。"""
+    date = _get_date(date)
+    logger.info("Starting MoneyUDN news crawler for date: %s", date)
+    try:
+        df = tw_crawler.moneyudn_news_crawler(date)
+        logger.info(
+            "MoneyUDN news crawler completed, articles: %d", len(df)
+        )
+        return {"date": date, "data": df.to_dict(orient="records")}
+    except Exception as e:
+        logger.error("MoneyUDN news crawler failed: %s", e)
+        return {"date": date, "error": str(e)}

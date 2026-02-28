@@ -17,6 +17,7 @@
 | CTEE News | 工商時報台股新聞 |
 | CNYES News | 鉅亨網台股新聞 |
 | PTT News | PTT 股版文章 |
+| MoneyUDN News | 聯合新聞網經濟日報台股新聞 |
 
 ## 安裝
 
@@ -66,6 +67,9 @@ df_cnyes = tw_crawler.cnyes_news_crawler("2024-10-15")
 
 # PTT 股版文章
 df_ptt = tw_crawler.ptt_news_crawler("2024-10-15")
+
+# 聯合新聞網經濟日報台股新聞
+df_moneyudn = tw_crawler.moneyudn_news_crawler("2024-10-15")
 ```
 
 ### 方式二：FastAPI Server
@@ -92,6 +96,7 @@ Server 預設運行於 `http://127.0.0.1:6738/`。
 | `GET /ctee_news` | 工商時報台股新聞 |
 | `GET /cnyes_news` | 鉅亨網台股新聞 |
 | `GET /ptt_news` | PTT 股版文章 |
+| `GET /moneyudn_news` | 聯合新聞網經濟日報台股新聞 |
 
 所有 endpoint 皆支援 `?date=YYYY-MM-DD` 參數，不帶參數則預設為當天。
 
@@ -138,6 +143,11 @@ Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）
 - 歷史：`logs/crawler.YYYY-MM-DD.log`
 
 ## CHANGELOG
+
+### v2.5.0
+- 新增 MoneyUDN 聯合新聞網經濟日報台股新聞爬蟲（requests + BeautifulSoup + markdownify）
+- 新增 /moneyudn_news API endpoint
+- 使用 JSON-LD 結構化資料解析列表頁，保留文章圖片為 Markdown 格式
 
 ### v2.4.0
 - 新增 PTT 股版新聞爬蟲（requests + BeautifulSoup + markdownify）

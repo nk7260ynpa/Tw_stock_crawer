@@ -274,3 +274,42 @@ def test_crawl_ptt_news_failure(mocker: MockerFixture) -> None:
     data = response.json()
     assert "error" in data
     assert data["date"] == "2024-10-29"
+
+
+def test_crawl_moneyudn_news(mocker: MockerFixture) -> None:
+    """測試 GET /moneyudn_news 回傳聯合新聞網經濟日報新聞資料。"""
+    mock_df = pd.DataFrame({
+        "Date": ["2024-10-29"],
+        "Time": ["08:30:00"],
+        "Author": ["記者鐘惠玲"],
+        "Head": ["台積電法說會釋利多 外資連買三日"],
+        "url": ["https://money.udn.com/money/story/5612/9348922"],
+        "Content": ["台積電今日召開法說會。"],
+    })
+    mocker.patch(
+        "server.tw_crawler.moneyudn_news_crawler",
+        return_value=mock_df,
+    )
+
+    response = client.get("/moneyudn_news?date=2024-10-29")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == "2024-10-29"
+    assert len(data["data"]) == 1
+    assert data["data"][0]["Head"] == "台積電法說會釋利多 外資連買三日"
+
+
+def test_crawl_moneyudn_news_failure(mocker: MockerFixture) -> None:
+    """測試 MoneyUDN 新聞爬蟲失敗時回傳 error。"""
+    mocker.patch(
+        "server.tw_crawler.moneyudn_news_crawler",
+        side_effect=RuntimeError("connection error"),
+    )
+
+    response = client.get("/moneyudn_news?date=2024-10-29")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data
+    assert data["date"] == "2024-10-29"
