@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tw_crawler"
+version = "2.6.0"
+description = "A crawler for Taiwan stock market data"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+authors = [
+    { name = "nk7260ynpa", email = "nk7260ynpa@gmail.com" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "requests",
+    "cloudscraper",
+    "pandas",
+    "beautifulsoup4",
+    "lxml",
+    "markdownify",
+]
+
+[project.urls]
+Homepage = "https://github.com/nk7260ynpa/Tw_stock_crawler"
+
+[tool.setuptools.packages.find]
+include = ["tw_crawler*"]

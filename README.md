@@ -24,7 +24,7 @@
 ### 直接安裝套件
 ```bash
 pip install -r requirements.txt
-python setup.py install
+pip install .
 ```
 
 ### 使用 Docker 環境
