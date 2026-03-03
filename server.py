@@ -327,3 +327,26 @@ def crawl_moneyudn_news(
     except Exception as e:
         logger.error("MoneyUDN news crawler failed: %s", e)
         return {"date": date, "error": str(e)}
+
+
+@app.get("/company_info")
+def crawl_company_info() -> dict:
+    """爬取上市與上櫃公司基本資料及產業對照表。
+
+    從 TWSE 與 TPEX OpenAPI 取得公司基本資料，
+    合併為統一格式並建立產業代碼對照表。
+    此端點不需要 date 參數，因為公司資料不依日期變動。
+    """
+    logger.info("Starting company info crawler")
+    try:
+        result = tw_crawler.company_info_crawler()
+        logger.info(
+            "Company info crawler completed, "
+            "TWSE: %d, TPEX: %d",
+            result["twse_count"],
+            result["tpex_count"],
+        )
+        return {"data": result}
+    except Exception as e:
+        logger.error("Company info crawler failed: %s", e)
+        return {"error": str(e)}

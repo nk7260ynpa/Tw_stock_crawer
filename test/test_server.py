@@ -423,3 +423,62 @@ def test_crawl_news_without_hours_no_hours_field(
     data = response.json()
     assert "hours" not in data
     assert data["date"] == "2024-10-29"
+
+
+# --- /company_info endpoint 測試 ---
+
+
+def test_crawl_company_info(mocker: MockerFixture) -> None:
+    """測試 GET /company_info 回傳公司基本資料與產業對照表。"""
+    mock_result = {
+        "company_info": [
+            {
+                "SecurityCode": "2330",
+                "IndustryCode": "24",
+                "CompanyName": "台灣積體電路製造股份有限公司",
+                "SpecialShares": 0,
+                "NormalShares": 25930380458,
+                "PrivateShares": 0,
+            },
+        ],
+        "industry_map": [
+            {
+                "IndustryCode": "24",
+                "Industry": "半導體業",
+                "Market": "TWSE",
+            },
+        ],
+        "twse_count": 1,
+        "tpex_count": 0,
+    }
+    mocker.patch(
+        "server.tw_crawler.company_info_crawler",
+        return_value=mock_result,
+    )
+
+    response = client.get("/company_info")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "data" in data
+    assert data["data"]["twse_count"] == 1
+    assert data["data"]["tpex_count"] == 0
+    assert len(data["data"]["company_info"]) == 1
+    assert data["data"]["company_info"][0]["SecurityCode"] == "2330"
+    assert len(data["data"]["industry_map"]) == 1
+    assert data["data"]["industry_map"][0]["Industry"] == "半導體業"
+
+
+def test_crawl_company_info_failure(mocker: MockerFixture) -> None:
+    """測試 /company_info 爬蟲失敗時回傳 error。"""
+    mocker.patch(
+        "server.tw_crawler.company_info_crawler",
+        side_effect=RuntimeError("API connection error"),
+    )
+
+    response = client.get("/company_info")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data
+    assert "API connection error" in data["error"]
