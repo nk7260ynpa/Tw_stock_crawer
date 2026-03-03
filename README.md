@@ -145,6 +145,41 @@ docker run --rm nk7260ynpa/tw_stocker_crawler:latest pytest test/ -v
 docker run --rm nk7260ynpa/tw_stocker_crawler:latest pytest --cov-report term-missing --cov-config=.coveragerc --cov=./tw_crawler test/
 ```
 
+## CI/CD
+
+本專案使用 GitHub Actions 自動建置並發布 Docker image 至 DockerHub。
+
+### 觸發條件
+
+當推送符合 `v*.*.*` 格式的 git tag 時自動觸發（例如 `v1.0.0`、`v2.1.3`）。
+
+### Pipeline 流程
+
+1. Checkout 程式碼
+2. 從 tag 名稱擷取版本號（去除 `v` 前綴）
+3. 登入 DockerHub
+4. 建置 Docker image 並推送至 DockerHub，同時標記版本號與 `latest`
+
+### 發布新版本
+
+```bash
+# 建立 tag 並推送至 remote，觸發自動建置
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+推送後 GitHub Actions 會自動建置並發布：
+
+- `nk7260ynpa/tw_stocker_crawler:<版本號>`（例如 `1.0.0`）
+- `nk7260ynpa/tw_stocker_crawler:latest`
+
+### 必要的 GitHub Secrets
+
+| Secret | 說明 |
+|--------|------|
+| `DOCKERHUB_USERNAME` | DockerHub 帳號 |
+| `DOCKERHUB_TOKEN` | DockerHub Access Token |
+
 ## Log
 
 Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）：
