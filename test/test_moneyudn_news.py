@@ -355,6 +355,32 @@ def test_parse_list_page_invalid_json() -> None:
     assert articles == []
 
 
+def test_parse_list_page_with_control_characters() -> None:
+    """測試 JSON-LD 含控制字元時仍能正確解析。
+
+    MoneyUDN 的 JSON-LD 經常包含未轉義的控制字元（如 tab、換行），
+    需使用 json.loads(strict=False) 處理。
+    """
+    # 在 JSON value 中嵌入 literal tab 和 newline 控制字元
+    html = (
+        '<html><head>\n'
+        '<script type="application/ld+json">\n'
+        '{"@graph": [{"@type": "ItemList", "itemListElement": [\n'
+        '{"@type": "ListItem", "item": {\n'
+        '"@type": "NewsArticle",\n'
+        '"url": "/money/story/5612/9999999",\n'
+        '"name": "含控制字元\t的標題",\n'
+        '"datePublished": "2026-03-04T10:00:00+08:00",\n'
+        '"author": {"@type": "Person", "name": "記者\n測試"}\n'
+        '}}]}]}\n'
+        '</script></head><body></body></html>'
+    )
+    articles = _parse_list_page(html)
+    assert len(articles) == 1
+    assert "含控制字元" in articles[0]["name"]
+    assert articles[0]["datePublished"] == "2026-03-04T10:00:00+08:00"
+
+
 # --- 單元測試：_fetch_article_content ---
 
 

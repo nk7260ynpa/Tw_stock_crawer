@@ -88,7 +88,9 @@ def _parse_list_page(html: str) -> list[dict]:
 
     for script in ld_scripts:
         try:
-            data = json.loads(script.string or "")
+            # strict=False 容許 JSON 中的控制字元（如 \t、\n），
+            # MoneyUDN 的 JSON-LD 經常包含未轉義的控制字元
+            data = json.loads(script.string or "", strict=False)
         except (json.JSONDecodeError, TypeError):
             continue
 
