@@ -16,6 +16,8 @@ docker rm -f "$CONTAINER_NAME" 2>/dev/null
 docker run -d \
     --name "$CONTAINER_NAME" \
     --network db_network \
+    --dns 8.8.8.8 \
+    --dns 8.8.4.4 \
     -p "$PORT:$PORT" \
     -v "$LOG_DIR:/workspace/logs" \
     --rm \

@@ -31,6 +31,11 @@ log_handler.namer = lambda name: name.replace(
 ) + ".log"
 log_handler.setFormatter(log_formatter)
 
+# 設定 tw_crawler package logger，確保所有子模組日誌都寫入檔案
+tw_crawler_logger = logging.getLogger("tw_crawler")
+tw_crawler_logger.setLevel(logging.DEBUG)
+tw_crawler_logger.addHandler(log_handler)
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.addHandler(log_handler)
