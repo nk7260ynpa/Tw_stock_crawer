@@ -6,12 +6,15 @@ from bs4 import BeautifulSoup
 from pytest_mock import MockerFixture
 
 from tw_crawler.ptt_news import (
+    MAX_RETRIES,
     PTT_STOCK_INDEX_URL,
+    RETRY_BASE_DELAY,
     _create_session,
     _extract_article_content,
     _gen_empty_df,
     _parse_article_time,
     _parse_list_date,
+    _request_with_retry,
     fetch_article_detail,
     fetch_list_page,
     parse_list_articles,
@@ -784,3 +787,180 @@ def test_ptt_news_crawler_hours_mode_filters_old(
     df = ptt_news_crawler("2026-02-27", hours=1)
 
     assert df.empty
+
+
+# --- 單元測試：_request_with_retry ---
+
+
+def test_request_with_retry_success_first_attempt(
+    mocker: MockerFixture,
+) -> None:
+    """測試首次請求即成功，不需重試。"""
+    mocker.patch("tw_crawler.ptt_news.time.sleep")
+
+    mock_response = mocker.Mock()
+    mock_response.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.return_value = mock_response
+
+    result = _request_with_retry(mock_session, "https://example.com", "測試")
+
+    assert result is mock_response
+    mock_session.get.assert_called_once()
+
+
+def test_request_with_retry_success_after_failures(
+    mocker: MockerFixture,
+) -> None:
+    """測試前兩次失敗、第三次成功的重試。"""
+    mock_sleep = mocker.patch("tw_crawler.ptt_news.time.sleep")
+
+    mock_response = mocker.Mock()
+    mock_response.raise_for_status = mocker.Mock()
+
+    import requests as req
+    ssl_error = req.exceptions.SSLError("SSL: UNEXPECTED_EOF_WHILE_READING")
+
+    mock_session = mocker.Mock()
+    mock_session.get.side_effect = [
+        ssl_error,       # 第 1 次失敗
+        ssl_error,       # 第 2 次失敗
+        mock_response,   # 第 3 次成功
+    ]
+
+    result = _request_with_retry(mock_session, "https://example.com", "列表頁")
+
+    assert result is mock_response
+    assert mock_session.get.call_count == 3
+    # 驗證指數退避延遲：1s, 2s
+    assert mock_sleep.call_count == 2
+    mock_sleep.assert_any_call(RETRY_BASE_DELAY * 1)  # 1s
+    mock_sleep.assert_any_call(RETRY_BASE_DELAY * 2)  # 2s
+
+
+def test_request_with_retry_all_attempts_fail(
+    mocker: MockerFixture,
+) -> None:
+    """測試所有重試皆失敗，應拋出最後的例外。"""
+    mocker.patch("tw_crawler.ptt_news.time.sleep")
+
+    import requests as req
+    ssl_error = req.exceptions.SSLError("SSL: UNEXPECTED_EOF_WHILE_READING")
+
+    mock_session = mocker.Mock()
+    mock_session.get.side_effect = ssl_error
+
+    with pytest.raises(req.exceptions.SSLError, match="UNEXPECTED_EOF"):
+        _request_with_retry(mock_session, "https://example.com", "文章")
+
+    assert mock_session.get.call_count == MAX_RETRIES
+
+
+def test_request_with_retry_connection_error(
+    mocker: MockerFixture,
+) -> None:
+    """測試 ConnectionError 也會觸發重試。"""
+    mocker.patch("tw_crawler.ptt_news.time.sleep")
+
+    mock_response = mocker.Mock()
+    mock_response.raise_for_status = mocker.Mock()
+
+    import requests as req
+    conn_error = req.ConnectionError("Connection reset by peer")
+
+    mock_session = mocker.Mock()
+    mock_session.get.side_effect = [conn_error, mock_response]
+
+    result = _request_with_retry(mock_session, "https://example.com", "列表頁")
+
+    assert result is mock_response
+    assert mock_session.get.call_count == 2
+
+
+def test_fetch_list_page_retries_on_ssl_error(
+    mocker: MockerFixture,
+) -> None:
+    """測試 fetch_list_page 遇到 SSL 錯誤自動重試成功。"""
+    mocker.patch("tw_crawler.ptt_news.time.sleep")
+
+    import requests as req
+    ssl_error = req.exceptions.SSLError("SSL EOF")
+
+    mock_response = mocker.Mock()
+    mock_response.text = SAMPLE_LIST_HTML
+    mock_response.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.side_effect = [ssl_error, mock_response]
+
+    soup, prev_url = fetch_list_page(mock_session, PTT_STOCK_INDEX_URL)
+
+    assert soup is not None
+    assert prev_url == "https://www.ptt.cc/bbs/stock/index3999.html"
+    assert mock_session.get.call_count == 2
+
+
+def test_fetch_article_detail_retries_on_ssl_error(
+    mocker: MockerFixture,
+) -> None:
+    """測試 fetch_article_detail 遇到 SSL 錯誤自動重試成功。"""
+    mocker.patch("tw_crawler.ptt_news.time.sleep")
+
+    import requests as req
+    ssl_error = req.exceptions.SSLError("SSL EOF")
+
+    mock_response = mocker.Mock()
+    mock_response.text = SAMPLE_ARTICLE_HTML
+    mock_response.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.side_effect = [ssl_error, mock_response]
+
+    result = fetch_article_detail(
+        mock_session,
+        "https://www.ptt.cc/bbs/stock/M.1740652200.A.B01.html",
+    )
+
+    assert result["time_str"] == "14:30:00"
+    assert "台積電今日召開法說會" in result["content"]
+    assert mock_session.get.call_count == 2
+
+
+def test_ptt_news_crawler_retries_list_page(
+    mocker: MockerFixture,
+) -> None:
+    """測試完整爬蟲流程中列表頁重試後成功。"""
+    mocker.patch("tw_crawler.ptt_news.time.sleep")
+
+    import requests as req
+    ssl_error = req.exceptions.SSLError("SSL EOF")
+
+    mock_list_response = mocker.Mock()
+    mock_list_response.text = SAMPLE_LIST_HTML
+    mock_list_response.raise_for_status = mocker.Mock()
+
+    mock_article_response = mocker.Mock()
+    mock_article_response.text = SAMPLE_ARTICLE_HTML
+    mock_article_response.raise_for_status = mocker.Mock()
+
+    mock_session = mocker.Mock()
+    mock_session.get.side_effect = [
+        ssl_error,               # 列表頁第 1 次失敗
+        mock_list_response,      # 列表頁第 2 次成功
+        mock_article_response,   # 第 1 篇文章
+        mock_article_response,   # 第 2 篇文章
+    ]
+    mock_session.cookies = mocker.Mock()
+    mock_session.cookies.get.return_value = "1"
+    mock_session.headers = {}
+
+    mocker.patch(
+        "tw_crawler.ptt_news._create_session",
+        return_value=mock_session,
+    )
+
+    df = ptt_news_crawler("2026-02-27")
+
+    assert not df.empty
+    assert len(df) == 2

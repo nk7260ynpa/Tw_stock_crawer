@@ -34,6 +34,10 @@ REQUEST_DELAY = 0.5
 # HTTP 請求逾時秒數
 REQUEST_TIMEOUT = 30
 
+# 重試設定
+MAX_RETRIES = 3
+RETRY_BASE_DELAY = 1  # 首次重試等待秒數（後續以指數遞增：1s, 2s, 4s）
+
 
 def _create_session() -> requests.Session:
     """建立已設定 PTT 年齡驗證 cookie 的 requests session。
@@ -157,11 +161,58 @@ def _extract_article_content(soup: BeautifulSoup) -> str:
     return content
 
 
+def _request_with_retry(
+    session: requests.Session,
+    url: str,
+    context: str = "請求",
+) -> requests.Response:
+    """帶指數退避重試的 HTTP GET 請求。
+
+    遇到 requests.RequestException（含 SSL 錯誤、連線中斷等）時，
+    自動重試最多 MAX_RETRIES 次，每次等待時間以指數遞增。
+
+    Args:
+        session: 已設定 cookie 的 requests Session。
+        url: 請求 URL。
+        context: 描述文字，用於 log 訊息（如 "列表頁" 或 "文章"）。
+
+    Returns:
+        HTTP 回應物件。
+
+    Raises:
+        requests.RequestException: 當所有重試皆失敗時。
+    """
+    last_exception = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            response = session.get(url, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
+            return response
+        except requests.RequestException as e:
+            last_exception = e
+            if attempt < MAX_RETRIES:
+                delay = RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                logger.warning(
+                    "取得 PTT %s失敗（第 %d/%d 次）: %s，"
+                    "%d 秒後重試",
+                    context, attempt, MAX_RETRIES, e, delay,
+                )
+                time.sleep(delay)
+            else:
+                logger.error(
+                    "取得 PTT %s失敗（已重試 %d 次）: %s",
+                    context, MAX_RETRIES, e,
+                )
+    raise last_exception  # type: ignore[misc]
+
+
 def fetch_list_page(
     session: requests.Session,
     url: str,
 ) -> tuple[BeautifulSoup, str | None]:
     """取得 PTT 列表頁面並解析。
+
+    內建重試機制，遇到 SSL 錯誤等網路問題時會自動重試。
 
     Args:
         session: 已設定 cookie 的 requests Session。
@@ -171,11 +222,10 @@ def fetch_list_page(
         tuple: (BeautifulSoup 物件, 上一頁的 URL 或 None)。
 
     Raises:
-        requests.RequestException: 當 HTTP 請求失敗時。
+        requests.RequestException: 當重試後 HTTP 請求仍失敗時。
     """
     logger.info("取得 PTT 列表頁: %s", url)
-    response = session.get(url, timeout=REQUEST_TIMEOUT)
-    response.raise_for_status()
+    response = _request_with_retry(session, url, context="列表頁")
 
     soup = BeautifulSoup(response.text, "lxml")
 
@@ -302,6 +352,8 @@ def fetch_article_detail(
 ) -> dict:
     """爬取 PTT 文章頁面取得完整時間與全文。
 
+    內建重試機制，遇到 SSL 錯誤等網路問題時會自動重試。
+
     Args:
         session: 已設定 cookie 的 requests Session。
         url: 文章完整 URL。
@@ -311,11 +363,10 @@ def fetch_article_detail(
         content（Markdown 全文）的字典。
 
     Raises:
-        requests.RequestException: 當 HTTP 請求失敗時。
+        requests.RequestException: 當重試後 HTTP 請求仍失敗時。
     """
     logger.info("取得 PTT 文章: %s", url)
-    response = session.get(url, timeout=REQUEST_TIMEOUT)
-    response.raise_for_status()
+    response = _request_with_retry(session, url, context="文章")
 
     soup = BeautifulSoup(response.text, "lxml")
 

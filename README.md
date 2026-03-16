@@ -199,6 +199,10 @@ Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）
 
 ## CHANGELOG
 
+### v2.7.1
+- PTT 股版爬蟲新增 HTTP 請求重試機制（指數退避），修復 SSL 間歇性錯誤導致排程全部失敗的問題
+- `fetch_list_page` 和 `fetch_article_detail` 遇到 SSL/連線錯誤時自動重試最多 3 次（延遲 1s, 2s, 4s）
+
 ### v2.7.0
 - 新增公司產業對照爬蟲（CompanyInfo），從 TWSE/TPEX OpenAPI 動態取得公司基本資料
 - 新增 /company_info API endpoint，回傳公司資訊與產業代碼對照表
