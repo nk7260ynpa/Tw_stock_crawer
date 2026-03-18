@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tw_crawler"
-version = "2.7.1"
+version = "2.8.0"
 description = "A crawler for Taiwan stock market data"
 readme = "README.md"
 license = "MIT"
@@ -26,6 +26,7 @@ dependencies = [
     "beautifulsoup4",
     "lxml",
     "markdownify",
+    "yfinance",
 ]
 
 [project.urls]

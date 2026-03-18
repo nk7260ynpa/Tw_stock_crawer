@@ -425,6 +425,87 @@ def test_crawl_news_without_hours_no_hours_field(
     assert data["date"] == "2024-10-29"
 
 
+# --- /oil_price endpoint 測試 ---
+
+
+def test_crawl_oil_price(mocker: MockerFixture) -> None:
+    """測試 GET /oil_price 回傳原油價格資料。"""
+    mock_result = [
+        {
+            "product": "WTI",
+            "date": "2026-03-18",
+            "open": 68.50,
+            "high": 69.20,
+            "low": 68.10,
+            "close": 68.85,
+            "volume": 250000,
+        },
+        {
+            "product": "Brent",
+            "date": "2026-03-18",
+            "open": 72.30,
+            "high": 73.00,
+            "low": 72.00,
+            "close": 72.65,
+            "volume": 180000,
+        },
+    ]
+    mocker.patch(
+        "server.tw_crawler.oil_price_crawler",
+        return_value=mock_result,
+    )
+
+    response = client.get("/oil_price?date=2026-03-18")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == "2026-03-18"
+    assert len(data["data"]) == 2
+    assert data["data"][0]["product"] == "WTI"
+    assert data["data"][0]["close"] == 68.85
+    assert data["data"][1]["product"] == "Brent"
+
+
+def test_crawl_oil_price_default_date(mocker: MockerFixture) -> None:
+    """測試 GET /oil_price 不帶日期時使用當天日期。"""
+    mock_result = [
+        {
+            "product": "WTI",
+            "date": datetime.date.today().strftime("%Y-%m-%d"),
+            "open": 68.50,
+            "high": 69.20,
+            "low": 68.10,
+            "close": 68.85,
+            "volume": 250000,
+        },
+    ]
+    mocker.patch(
+        "server.tw_crawler.oil_price_crawler",
+        return_value=mock_result,
+    )
+
+    response = client.get("/oil_price")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == datetime.date.today().strftime("%Y-%m-%d")
+
+
+def test_crawl_oil_price_failure(mocker: MockerFixture) -> None:
+    """測試原油價格爬蟲失敗時回傳 error。"""
+    mocker.patch(
+        "server.tw_crawler.oil_price_crawler",
+        side_effect=ValueError("無法取得任何原油價格資料"),
+    )
+
+    response = client.get("/oil_price?date=2026-03-18")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data
+    assert data["date"] == "2026-03-18"
+
+
 # --- /company_info endpoint 測試 ---
 
 

@@ -334,6 +334,31 @@ def crawl_moneyudn_news(
         return {"date": date, "error": str(e)}
 
 
+@app.get("/oil_price")
+def crawl_oil_price(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取國際原油價格（WTI 西德州原油 + Brent 布蘭特原油）。
+
+    使用 yfinance 從 Yahoo Finance 取得原油期貨價格資料。
+    若查詢日期為非交易日，會回傳最近一個交易日的資料。
+    """
+    date = _get_date(date)
+    logger.info("Starting oil price crawler for date: %s", date)
+    try:
+        result = tw_crawler.oil_price_crawler(date)
+        logger.info(
+            "Oil price crawler completed, products: %d", len(result)
+        )
+        return {"date": date, "data": result}
+    except Exception as e:
+        logger.error("Oil price crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
+
+
 @app.get("/company_info")
 def crawl_company_info() -> dict:
     """爬取上市與上櫃公司基本資料及產業對照表。
