@@ -20,6 +20,9 @@
 | MoneyUDN News | 聯合新聞網經濟日報台股新聞 |
 | CompanyInfo | 上市/上櫃公司基本資料與產業對照表 |
 | OilPrice | 國際原油價格（WTI 西德州 + Brent 布蘭特） |
+| GoldPrice | 國際黃金價格（COMEX Gold Futures） |
+| BitcoinPrice | 比特幣價格（BTC-USD） |
+| CurrencyPrice | 國際匯率（USDTWD + JPYTWD） |
 
 ## 安裝
 
@@ -84,6 +87,18 @@ industry_map = result["industry_map"]   # 產業代碼對照表
 # 國際原油價格（WTI + Brent）
 oil_prices = tw_crawler.oil_price_crawler("2024-10-15")
 # 回傳 list[dict]，每筆包含 product, date, open, high, low, close, volume
+
+# 國際黃金價格（COMEX Gold Futures）
+gold_prices = tw_crawler.gold_price_crawler("2024-10-15")
+# 回傳 list[dict]，格式同 oil_price_crawler
+
+# 比特幣價格（BTC-USD）
+btc_prices = tw_crawler.bitcoin_price_crawler("2024-10-15")
+# 回傳 list[dict]，格式同 oil_price_crawler
+
+# 國際匯率（USDTWD + JPYTWD）
+currency_prices = tw_crawler.currency_price_crawler("2024-10-15")
+# 回傳 list[dict]，JPYTWD 若無直接 ticker 會自動從 TWD=X / JPY=X 交叉計算
 ```
 
 ### 方式二：FastAPI Server
@@ -112,9 +127,12 @@ Server 預設運行於 `http://127.0.0.1:6738/`。
 | `GET /ptt_news` | PTT 股版文章 |
 | `GET /moneyudn_news` | 聯合新聞網經濟日報台股新聞 |
 | `GET /oil_price` | 國際原油價格（WTI + Brent） |
+| `GET /gold_price` | 國際黃金價格（COMEX Gold Futures） |
+| `GET /bitcoin_price` | 比特幣價格（BTC-USD） |
+| `GET /currency_price` | 國際匯率（USDTWD + JPYTWD） |
 | `GET /company_info` | 上市/上櫃公司基本資料與產業對照表 |
 
-除 `/company_info` 外，所有 endpoint 皆支援 `?date=YYYY-MM-DD` 參數，不帶參數則預設為當天。`/oil_price` 若查詢日期為非交易日，會自動回傳最近一個交易日的資料。
+除 `/company_info` 外，所有 endpoint 皆支援 `?date=YYYY-MM-DD` 參數，不帶參數則預設為當天。`/oil_price`、`/gold_price`、`/bitcoin_price`、`/currency_price` 若查詢日期為非交易日，會自動回傳最近一個交易日的資料。
 
 新聞端點（`/ctee_news`、`/cnyes_news`、`/ptt_news`、`/moneyudn_news`）額外支援 `?hours=N` 參數（1-72），可抓取過去 N 小時內的新聞，避免排程間隔漏抓。`hours` 優先於 `date`，同時指定時以 `hours` 為準。
 
@@ -143,6 +161,18 @@ data = response.json()
 
 # 爬取國際原油價格
 response = requests.get("http://127.0.0.1:6738/oil_price?date=2024-10-15")
+data = response.json()
+
+# 爬取國際黃金價格
+response = requests.get("http://127.0.0.1:6738/gold_price?date=2024-10-15")
+data = response.json()
+
+# 爬取比特幣價格
+response = requests.get("http://127.0.0.1:6738/bitcoin_price?date=2024-10-15")
+data = response.json()
+
+# 爬取國際匯率
+response = requests.get("http://127.0.0.1:6738/currency_price?date=2024-10-15")
 data = response.json()
 ```
 
@@ -208,6 +238,12 @@ Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）
 - 歷史：`logs/crawler.YYYY-MM-DD.log`
 
 ## CHANGELOG
+
+### v2.9.0
+- 新增國際黃金價格爬蟲（GoldPrice），使用 yfinance 取得 COMEX Gold Futures 價格
+- 新增比特幣價格爬蟲（BitcoinPrice），使用 yfinance 取得 BTC-USD 價格
+- 新增國際匯率爬蟲（CurrencyPrice），支援 USDTWD 與 JPYTWD，JPYTWD 支援 fallback 交叉計算
+- 新增 /gold_price、/bitcoin_price、/currency_price 三個 API endpoint
 
 ### v2.8.0
 - 新增國際原油價格爬蟲（OilPrice），使用 yfinance 取得 WTI 與 Brent 原油期貨價格

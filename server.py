@@ -359,6 +359,84 @@ def crawl_oil_price(
         return {"date": date, "error": str(e)}
 
 
+@app.get("/gold_price")
+def crawl_gold_price(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取國際黃金價格（COMEX Gold Futures）。
+
+    使用 yfinance 從 Yahoo Finance 取得黃金期貨價格資料。
+    若查詢日期為非交易日，會回傳最近一個交易日的資料。
+    """
+    date = _get_date(date)
+    logger.info("Starting gold price crawler for date: %s", date)
+    try:
+        result = tw_crawler.gold_price_crawler(date)
+        logger.info(
+            "Gold price crawler completed, products: %d", len(result)
+        )
+        return {"date": date, "data": result}
+    except Exception as e:
+        logger.error("Gold price crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
+
+
+@app.get("/bitcoin_price")
+def crawl_bitcoin_price(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取比特幣價格（BTC-USD）。
+
+    使用 yfinance 從 Yahoo Finance 取得比特幣價格資料。
+    若查詢日期為非交易日，會回傳最近一個交易日的資料。
+    """
+    date = _get_date(date)
+    logger.info("Starting bitcoin price crawler for date: %s", date)
+    try:
+        result = tw_crawler.bitcoin_price_crawler(date)
+        logger.info(
+            "Bitcoin price crawler completed, products: %d",
+            len(result),
+        )
+        return {"date": date, "data": result}
+    except Exception as e:
+        logger.error("Bitcoin price crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
+
+
+@app.get("/currency_price")
+def crawl_currency_price(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取國際匯率（USDTWD 美元兌台幣 + JPYTWD 日圓兌台幣）。
+
+    使用 yfinance 從 Yahoo Finance 取得匯率資料。
+    若查詢日期為非交易日，會回傳最近一個交易日的資料。
+    JPYTWD 若無直接 ticker，會自動從 TWD=X / JPY=X 交叉計算。
+    """
+    date = _get_date(date)
+    logger.info("Starting currency price crawler for date: %s", date)
+    try:
+        result = tw_crawler.currency_price_crawler(date)
+        logger.info(
+            "Currency price crawler completed, products: %d",
+            len(result),
+        )
+        return {"date": date, "data": result}
+    except Exception as e:
+        logger.error("Currency price crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
+
+
 @app.get("/company_info")
 def crawl_company_info() -> dict:
     """爬取上市與上櫃公司基本資料及產業對照表。

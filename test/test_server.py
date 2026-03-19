@@ -563,3 +563,229 @@ def test_crawl_company_info_failure(mocker: MockerFixture) -> None:
     data = response.json()
     assert "error" in data
     assert "API connection error" in data["error"]
+
+
+# --- /gold_price endpoint 測試 ---
+
+
+def test_crawl_gold_price(mocker: MockerFixture) -> None:
+    """測試 GET /gold_price 回傳黃金價格資料。"""
+    mock_result = [
+        {
+            "product": "Gold",
+            "date": "2026-03-18",
+            "open": 2680.00,
+            "high": 2695.00,
+            "low": 2675.00,
+            "close": 2690.50,
+            "volume": 170000,
+        },
+    ]
+    mocker.patch(
+        "server.tw_crawler.gold_price_crawler",
+        return_value=mock_result,
+    )
+
+    response = client.get("/gold_price?date=2026-03-18")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == "2026-03-18"
+    assert len(data["data"]) == 1
+    assert data["data"][0]["product"] == "Gold"
+    assert data["data"][0]["close"] == 2690.50
+
+
+def test_crawl_gold_price_default_date(mocker: MockerFixture) -> None:
+    """測試 GET /gold_price 不帶日期時使用當天日期。"""
+    mock_result = [
+        {
+            "product": "Gold",
+            "date": datetime.date.today().strftime("%Y-%m-%d"),
+            "open": 2680.00,
+            "high": 2695.00,
+            "low": 2675.00,
+            "close": 2690.50,
+            "volume": 170000,
+        },
+    ]
+    mocker.patch(
+        "server.tw_crawler.gold_price_crawler",
+        return_value=mock_result,
+    )
+
+    response = client.get("/gold_price")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == datetime.date.today().strftime("%Y-%m-%d")
+
+
+def test_crawl_gold_price_failure(mocker: MockerFixture) -> None:
+    """測試黃金價格爬蟲失敗時回傳 error。"""
+    mocker.patch(
+        "server.tw_crawler.gold_price_crawler",
+        side_effect=ValueError("無法取得任何黃金價格資料"),
+    )
+
+    response = client.get("/gold_price?date=2026-03-18")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data
+    assert data["date"] == "2026-03-18"
+
+
+# --- /bitcoin_price endpoint 測試 ---
+
+
+def test_crawl_bitcoin_price(mocker: MockerFixture) -> None:
+    """測試 GET /bitcoin_price 回傳比特幣價格資料。"""
+    mock_result = [
+        {
+            "product": "Bitcoin",
+            "date": "2026-03-18",
+            "open": 83500.00,
+            "high": 84500.00,
+            "low": 83200.00,
+            "close": 84200.00,
+            "volume": 37000000000,
+        },
+    ]
+    mocker.patch(
+        "server.tw_crawler.bitcoin_price_crawler",
+        return_value=mock_result,
+    )
+
+    response = client.get("/bitcoin_price?date=2026-03-18")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == "2026-03-18"
+    assert len(data["data"]) == 1
+    assert data["data"][0]["product"] == "Bitcoin"
+    assert data["data"][0]["close"] == 84200.00
+
+
+def test_crawl_bitcoin_price_default_date(
+    mocker: MockerFixture,
+) -> None:
+    """測試 GET /bitcoin_price 不帶日期時使用當天日期。"""
+    mock_result = [
+        {
+            "product": "Bitcoin",
+            "date": datetime.date.today().strftime("%Y-%m-%d"),
+            "open": 83500.00,
+            "high": 84500.00,
+            "low": 83200.00,
+            "close": 84200.00,
+            "volume": 37000000000,
+        },
+    ]
+    mocker.patch(
+        "server.tw_crawler.bitcoin_price_crawler",
+        return_value=mock_result,
+    )
+
+    response = client.get("/bitcoin_price")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == datetime.date.today().strftime("%Y-%m-%d")
+
+
+def test_crawl_bitcoin_price_failure(mocker: MockerFixture) -> None:
+    """測試比特幣價格爬蟲失敗時回傳 error。"""
+    mocker.patch(
+        "server.tw_crawler.bitcoin_price_crawler",
+        side_effect=ValueError("無法取得任何比特幣價格資料"),
+    )
+
+    response = client.get("/bitcoin_price?date=2026-03-18")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data
+    assert data["date"] == "2026-03-18"
+
+
+# --- /currency_price endpoint 測試 ---
+
+
+def test_crawl_currency_price(mocker: MockerFixture) -> None:
+    """測試 GET /currency_price 回傳匯率資料。"""
+    mock_result = [
+        {
+            "product": "USDTWD",
+            "date": "2026-03-18",
+            "open": 32.6000,
+            "high": 32.6500,
+            "low": 32.5600,
+            "close": 32.6200,
+            "volume": 0,
+        },
+        {
+            "product": "JPYTWD",
+            "date": "2026-03-18",
+            "open": 0.2180,
+            "high": 0.2190,
+            "low": 0.2175,
+            "close": 0.2185,
+            "volume": 0,
+        },
+    ]
+    mocker.patch(
+        "server.tw_crawler.currency_price_crawler",
+        return_value=mock_result,
+    )
+
+    response = client.get("/currency_price?date=2026-03-18")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == "2026-03-18"
+    assert len(data["data"]) == 2
+    assert data["data"][0]["product"] == "USDTWD"
+    assert data["data"][1]["product"] == "JPYTWD"
+
+
+def test_crawl_currency_price_default_date(
+    mocker: MockerFixture,
+) -> None:
+    """測試 GET /currency_price 不帶日期時使用當天日期。"""
+    mock_result = [
+        {
+            "product": "USDTWD",
+            "date": datetime.date.today().strftime("%Y-%m-%d"),
+            "open": 32.6000,
+            "high": 32.6500,
+            "low": 32.5600,
+            "close": 32.6200,
+            "volume": 0,
+        },
+    ]
+    mocker.patch(
+        "server.tw_crawler.currency_price_crawler",
+        return_value=mock_result,
+    )
+
+    response = client.get("/currency_price")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == datetime.date.today().strftime("%Y-%m-%d")
+
+
+def test_crawl_currency_price_failure(mocker: MockerFixture) -> None:
+    """測試匯率爬蟲失敗時回傳 error。"""
+    mocker.patch(
+        "server.tw_crawler.currency_price_crawler",
+        side_effect=ValueError("無法取得任何匯率資料"),
+    )
+
+    response = client.get("/currency_price?date=2026-03-18")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data
+    assert data["date"] == "2026-03-18"
