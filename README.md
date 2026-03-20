@@ -23,6 +23,7 @@
 | GoldPrice | 國際黃金價格（COMEX Gold Futures） |
 | BitcoinPrice | 比特幣價格（BTC-USD） |
 | CurrencyPrice | 國際匯率（USDTWD + JPYTWD） |
+| IndicesPrice | 國際股市指數（道瓊工業指數 + 納斯達克綜合指數） |
 
 ## 安裝
 
@@ -99,6 +100,10 @@ btc_prices = tw_crawler.bitcoin_price_crawler("2024-10-15")
 # 國際匯率（USDTWD + JPYTWD）
 currency_prices = tw_crawler.currency_price_crawler("2024-10-15")
 # 回傳 list[dict]，JPYTWD 若無直接 ticker 會自動從 TWD=X / JPY=X 交叉計算
+
+# 國際股市指數（道瓊 + 納斯達克）
+indices_prices = tw_crawler.indices_price_crawler("2024-10-15")
+# 回傳 list[dict]，格式同 oil_price_crawler
 ```
 
 ### 方式二：FastAPI Server
@@ -130,9 +135,10 @@ Server 預設運行於 `http://127.0.0.1:6738/`。
 | `GET /gold_price` | 國際黃金價格（COMEX Gold Futures） |
 | `GET /bitcoin_price` | 比特幣價格（BTC-USD） |
 | `GET /currency_price` | 國際匯率（USDTWD + JPYTWD） |
+| `GET /indices_price` | 國際股市指數（道瓊 + 納斯達克） |
 | `GET /company_info` | 上市/上櫃公司基本資料與產業對照表 |
 
-除 `/company_info` 外，所有 endpoint 皆支援 `?date=YYYY-MM-DD` 參數，不帶參數則預設為當天。`/oil_price`、`/gold_price`、`/bitcoin_price`、`/currency_price` 若查詢日期為非交易日，會自動回傳最近一個交易日的資料。
+除 `/company_info` 外，所有 endpoint 皆支援 `?date=YYYY-MM-DD` 參數，不帶參數則預設為當天。`/oil_price`、`/gold_price`、`/bitcoin_price`、`/currency_price`、`/indices_price` 若查詢日期為非交易日，會自動回傳最近一個交易日的資料。
 
 新聞端點（`/ctee_news`、`/cnyes_news`、`/ptt_news`、`/moneyudn_news`）額外支援 `?hours=N` 參數（1-72），可抓取過去 N 小時內的新聞，避免排程間隔漏抓。`hours` 優先於 `date`，同時指定時以 `hours` 為準。
 
@@ -173,6 +179,10 @@ data = response.json()
 
 # 爬取國際匯率
 response = requests.get("http://127.0.0.1:6738/currency_price?date=2024-10-15")
+data = response.json()
+
+# 爬取國際股市指數
+response = requests.get("http://127.0.0.1:6738/indices_price?date=2024-10-15")
 data = response.json()
 ```
 
@@ -238,6 +248,11 @@ Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）
 - 歷史：`logs/crawler.YYYY-MM-DD.log`
 
 ## CHANGELOG
+
+### v2.10.0
+- 新增國際股市指數爬蟲（IndicesPrice），使用 yfinance 取得道瓊工業指數與納斯達克綜合指數
+- 新增 /indices_price API endpoint，一次回傳兩個指數資料
+- Volume NaN 自動處理為 0
 
 ### v2.9.0
 - 新增國際黃金價格爬蟲（GoldPrice），使用 yfinance 取得 COMEX Gold Futures 價格

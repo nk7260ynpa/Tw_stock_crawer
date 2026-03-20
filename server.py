@@ -437,6 +437,32 @@ def crawl_currency_price(
         return {"date": date, "error": str(e)}
 
 
+@app.get("/indices_price")
+def crawl_indices_price(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取國際股市指數（道瓊工業指數 + 納斯達克綜合指數）。
+
+    使用 yfinance 從 Yahoo Finance 取得股市指數價格資料。
+    若查詢日期為非交易日，會回傳最近一個交易日的資料。
+    """
+    date = _get_date(date)
+    logger.info("Starting indices price crawler for date: %s", date)
+    try:
+        result = tw_crawler.indices_price_crawler(date)
+        logger.info(
+            "Indices price crawler completed, products: %d",
+            len(result),
+        )
+        return {"date": date, "data": result}
+    except Exception as e:
+        logger.error("Indices price crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
+
+
 @app.get("/company_info")
 def crawl_company_info() -> dict:
     """爬取上市與上櫃公司基本資料及產業對照表。

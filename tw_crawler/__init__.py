@@ -5,7 +5,7 @@
 PTT股版新聞(PTT)、聯合新聞網經濟日報新聞(MoneyUDN)、
 公司產業對照(CompanyInfo)、國際原油價格(OilPrice)、
 國際黃金價格(GoldPrice)、比特幣價格(BitcoinPrice)、
-國際匯率(CurrencyPrice) 的爬蟲函式。
+國際匯率(CurrencyPrice)、國際股市指數(IndicesPrice) 的爬蟲函式。
 """
 
 from .twse import twse_crawler
@@ -23,3 +23,4 @@ from .oil_price import oil_price_crawler
 from .gold_price import gold_price_crawler
 from .bitcoin_price import bitcoin_price_crawler
 from .currency_price import currency_price_crawler
+from .indices_price import indices_price_crawler

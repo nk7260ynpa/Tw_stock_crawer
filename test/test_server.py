@@ -506,6 +506,89 @@ def test_crawl_oil_price_failure(mocker: MockerFixture) -> None:
     assert data["date"] == "2026-03-18"
 
 
+# --- /indices_price endpoint 測試 ---
+
+
+def test_crawl_indices_price(mocker: MockerFixture) -> None:
+    """測試 GET /indices_price 回傳股市指數價格資料。"""
+    mock_result = [
+        {
+            "product": "DowJones",
+            "date": "2026-03-18",
+            "open": 42700.00,
+            "high": 43000.00,
+            "low": 42600.00,
+            "close": 42900.00,
+            "volume": 370000000,
+        },
+        {
+            "product": "Nasdaq",
+            "date": "2026-03-18",
+            "open": 18200.00,
+            "high": 18400.00,
+            "low": 18100.00,
+            "close": 18350.00,
+            "volume": 5800000000,
+        },
+    ]
+    mocker.patch(
+        "server.tw_crawler.indices_price_crawler",
+        return_value=mock_result,
+    )
+
+    response = client.get("/indices_price?date=2026-03-18")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == "2026-03-18"
+    assert len(data["data"]) == 2
+    assert data["data"][0]["product"] == "DowJones"
+    assert data["data"][0]["close"] == 42900.00
+    assert data["data"][1]["product"] == "Nasdaq"
+
+
+def test_crawl_indices_price_default_date(
+    mocker: MockerFixture,
+) -> None:
+    """測試 GET /indices_price 不帶日期時使用當天日期。"""
+    mock_result = [
+        {
+            "product": "DowJones",
+            "date": datetime.date.today().strftime("%Y-%m-%d"),
+            "open": 42700.00,
+            "high": 43000.00,
+            "low": 42600.00,
+            "close": 42900.00,
+            "volume": 370000000,
+        },
+    ]
+    mocker.patch(
+        "server.tw_crawler.indices_price_crawler",
+        return_value=mock_result,
+    )
+
+    response = client.get("/indices_price")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["date"] == datetime.date.today().strftime("%Y-%m-%d")
+
+
+def test_crawl_indices_price_failure(mocker: MockerFixture) -> None:
+    """測試股市指數爬蟲失敗時回傳 error。"""
+    mocker.patch(
+        "server.tw_crawler.indices_price_crawler",
+        side_effect=ValueError("無法取得任何股市指數資料"),
+    )
+
+    response = client.get("/indices_price?date=2026-03-18")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "error" in data
+    assert data["date"] == "2026-03-18"
+
+
 # --- /company_info endpoint 測試 ---
 
 
