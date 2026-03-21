@@ -127,6 +127,103 @@ SAMPLE_ARTICLE_HTML = """
 </html>
 """
 
+SAMPLE_LIST_HTML_WITH_SEPARATOR = """
+<html>
+<body>
+<div class="btn-group-paging">
+    <a href="/bbs/stock/index3999.html">上頁</a>
+</div>
+<div class="r-list-container action-bar-margin bbs-screen">
+<div class="r-ent">
+    <div class="nrec"><span class="hl f3">10</span></div>
+    <div class="title"><a href="/bbs/stock/M.1742572800.A.B01.html">
+    [新聞] 台積電法說會釋利多</a></div>
+    <div class="meta">
+        <div class="author">stockman</div>
+        <div class="date"> 3/21</div>
+    </div>
+</div>
+<div class="r-ent">
+    <div class="nrec"><span class="hl f2">5</span></div>
+    <div class="title"><a href="/bbs/stock/M.1742572900.A.C02.html">
+    [閒聊] 今天大盤走勢</a></div>
+    <div class="meta">
+        <div class="author">trader99</div>
+        <div class="date"> 3/21</div>
+    </div>
+</div>
+<div class="r-ent">
+    <div class="nrec"><span class="hl f1">3</span></div>
+    <div class="title"><a href="/bbs/stock/M.1742486400.A.A01.html">
+    [新聞] 昨日舊聞</a></div>
+    <div class="meta">
+        <div class="author">oldnews</div>
+        <div class="date"> 3/20</div>
+    </div>
+</div>
+<div class="r-list-sep"></div>
+<div class="r-ent">
+    <div class="nrec"><span class="hl f3">99</span></div>
+    <div class="title"><a href="/bbs/stock/M.1719878400.A.D01.html">
+    [公告] 股票板板規 v4.7</a></div>
+    <div class="meta">
+        <div class="author">modstock</div>
+        <div class="date"> 7/02</div>
+    </div>
+</div>
+<div class="r-ent">
+    <div class="nrec"><span class="hl f3">50</span></div>
+    <div class="title"><a href="/bbs/stock/M.1737417600.A.E01.html">
+    [公告] 4-6-1罰則</a></div>
+    <div class="meta">
+        <div class="author">modstock</div>
+        <div class="date"> 1/21</div>
+    </div>
+</div>
+<div class="r-ent">
+    <div class="nrec"><span class="hl f2">20</span></div>
+    <div class="title"><a href="/bbs/stock/M.1742486400.A.F01.html">
+    [閒聊] 盤後閒聊</a></div>
+    <div class="meta">
+        <div class="author">modstock</div>
+        <div class="date"> 3/20</div>
+    </div>
+</div>
+</div>
+</body>
+</html>
+"""
+
+SAMPLE_LIST_HTML_NO_SEPARATOR = """
+<html>
+<body>
+<div class="btn-group-paging">
+    <a href="/bbs/stock/index3998.html">上頁</a>
+</div>
+<div class="r-list-container action-bar-margin bbs-screen">
+<div class="r-ent">
+    <div class="nrec"><span class="hl f3">8</span></div>
+    <div class="title"><a href="/bbs/stock/M.1742486400.A.G01.html">
+    [新聞] 聯發科營收創高</a></div>
+    <div class="meta">
+        <div class="author">chipfan</div>
+        <div class="date"> 3/20</div>
+    </div>
+</div>
+<div class="r-ent">
+    <div class="nrec"><span class="hl f1">2</span></div>
+    <div class="title"><a href="/bbs/stock/M.1742400000.A.H01.html">
+    [新聞] 鴻海布局AI</a></div>
+    <div class="meta">
+        <div class="author">techguy</div>
+        <div class="date"> 3/19</div>
+    </div>
+</div>
+</div>
+</body>
+</html>
+"""
+
 SAMPLE_ARTICLE_HTML_NO_META = """
 <html>
 <body>
@@ -304,6 +401,86 @@ def test_parse_list_articles_all_match_no_older() -> None:
 
     assert len(matched) == 1
     assert found_older is False
+
+
+def test_parse_list_articles_skip_pinned_with_separator() -> None:
+    """測試含分隔線的列表頁：只處理分隔線以上的正常文章。
+
+    PTT 最新頁面有 div.r-list-sep 分隔線，以下為置頂公告。
+    置頂公告日期可能很舊（如 7/02、1/21），不應觸發 found_older。
+    """
+    soup = BeautifulSoup(SAMPLE_LIST_HTML_WITH_SEPARATOR, "lxml")
+    matched, found_older = parse_list_articles(soup, "2026-03-21", 2026)
+
+    # 分隔線以上有 2 篇 3/21 + 1 篇 3/20，目標日期 3/21 應匹配 2 篇
+    assert len(matched) == 2
+    assert matched[0]["title"] == "[新聞] 台積電法說會釋利多"
+    assert matched[0]["author"] == "stockman"
+    assert matched[1]["title"] == "[閒聊] 今天大盤走勢"
+    assert matched[1]["author"] == "trader99"
+
+    # 分隔線以上有 3/20 的文章 → found_older = True
+    assert found_older is True
+
+
+def test_parse_list_articles_pinned_not_trigger_older() -> None:
+    """測試置頂文章的舊日期不會誤觸 found_older。
+
+    修復前的問題：置頂公告日期（如 7/02）被當成更早文章，
+    導致爬蟲在第一頁就停止翻頁。
+    """
+    soup = BeautifulSoup(SAMPLE_LIST_HTML_WITH_SEPARATOR, "lxml")
+
+    # 目標日期 3/20：分隔線以上 3 篇都 >= 3/20，不應有更早文章
+    matched, found_older = parse_list_articles(soup, "2026-03-20", 2026)
+
+    # 應匹配 3/20 的 1 篇
+    assert len(matched) == 1
+    assert matched[0]["title"] == "[新聞] 昨日舊聞"
+
+    # 重點：雖然置頂有 7/02、1/21 等舊日期，但被跳過不處理
+    # 分隔線以上的文章都 >= 3/20，所以 found_older 應為 False
+    assert found_older is False
+
+
+def test_parse_list_articles_no_separator_page() -> None:
+    """測試無分隔線的非最新頁面：處理所有文章（行為不變）。"""
+    soup = BeautifulSoup(SAMPLE_LIST_HTML_NO_SEPARATOR, "lxml")
+    matched, found_older = parse_list_articles(soup, "2026-03-20", 2026)
+
+    # 應匹配 3/20 的 1 篇
+    assert len(matched) == 1
+    assert matched[0]["title"] == "[新聞] 聯發科營收創高"
+    assert matched[0]["author"] == "chipfan"
+
+    # 3/19 的文章 → found_older = True
+    assert found_older is True
+
+
+def test_parse_list_articles_separator_hours_mode() -> None:
+    """測試含分隔線的列表頁在時數模式下也能正確過濾置頂文章。"""
+    from datetime import date
+    soup = BeautifulSoup(SAMPLE_LIST_HTML_WITH_SEPARATOR, "lxml")
+
+    # cutoff_date = 3/21，分隔線以上只有 3/21 的 2 篇匹配
+    matched, found_older = parse_list_articles(
+        soup, "2026-03-21", 2026, cutoff_date=date(2026, 3, 21),
+    )
+
+    assert len(matched) == 2
+    # 分隔線以上 3/20 < cutoff → found_older = True
+    assert found_older is True
+
+
+def test_parse_list_articles_no_container_fallback() -> None:
+    """測試無 r-list-container 時退回原始 find_all 邏輯。"""
+    # 使用不含 r-list-container 的舊格式 HTML
+    soup = BeautifulSoup(SAMPLE_LIST_HTML, "lxml")
+    matched, found_older = parse_list_articles(soup, "2026-02-27", 2026)
+
+    # 原有行為不變：2 篇 2/27 + found_older (2/26)
+    assert len(matched) == 2
+    assert found_older is True
 
 
 # --- 單元測試：fetch_list_page ---

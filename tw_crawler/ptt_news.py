@@ -273,7 +273,31 @@ def parse_list_articles(
     articles = []
     found_older = False
 
-    entries = soup.find_all("div", class_="r-ent")
+    # 取得正常文章（排除分隔線以下的置頂文章）
+    # PTT 最新頁的 r-list-container 中，div.r-list-sep 是分隔線，
+    # 分隔線以上為一般文章，以下為置頂公告（日期可能很舊）。
+    container = soup.find("div", class_="r-list-container")
+    if container:
+        entries = []
+        pinned_count = 0
+        found_separator = False
+        for child in container.children:
+            if not hasattr(child, "get"):
+                continue
+            classes = child.get("class", [])
+            if "r-list-sep" in classes:
+                found_separator = True
+                continue
+            if "r-ent" in classes:
+                if found_separator:
+                    pinned_count += 1
+                else:
+                    entries.append(child)
+        if pinned_count > 0:
+            logger.info("跳過 %d 篇置頂文章", pinned_count)
+    else:
+        entries = soup.find_all("div", class_="r-ent")
+
     for entry in entries:
         # 取得標題和連結
         title_div = entry.find("div", class_="title")
