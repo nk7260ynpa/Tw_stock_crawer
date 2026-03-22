@@ -249,6 +249,11 @@ Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）
 
 ## CHANGELOG
 
+### v2.10.2
+- 修復 CTEE 新聞爬蟲首頁 HTML 失敗時的 fallback 問題：HTML 列表頁被 403 Forbidden 阻擋時，API 分頁仍從第 2 頁開始，跳過第 1 頁的最新文章
+- 新增 `api_start_page` 變數，HTML 首頁失敗時 API 自動從第 1 頁開始補抓
+- 重寫 `test_ctee_news.py` 測試：修正不存在的 import 符號、適配新版 HTML 結構、新增 fallback 測試案例
+
 ### v2.10.1
 - 修復 PTT 股版爬蟲置頂文章問題：置頂公告的舊日期（如 7/02、1/21）誤觸「更早文章」判斷，導致爬蟲在第一頁就停止翻頁
 - `parse_list_articles` 新增 `div.r-list-sep` 分隔線偵測，只處理分隔線以上的正常文章

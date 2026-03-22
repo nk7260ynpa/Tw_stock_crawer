@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # CTEE 台股新聞列表頁 URL（首頁 HTML，含第 1 頁資料）
 CTEE_LIST_URL = "https://www.ctee.com.tw/stock/twmarket"
 
-# CTEE 分頁 JSON API（page >= 2）
+# CTEE 分頁 JSON API（page >= 1）
 CTEE_API_URL = "https://www.ctee.com.tw/api/category/twmarket/{page}"
 
 # 每次 HTTP 請求之間的延遲秒數
@@ -205,7 +205,7 @@ def fetch_api_page(
 
     Args:
         scraper: CloudScraper 實例。
-        page: 頁碼（>= 2）。
+        page: 頁碼（>= 1）。
 
     Returns:
         文章列表（JSON 陣列）。
@@ -466,11 +466,16 @@ def ctee_news_crawler(
         logger.warning("取得首頁 HTML 失敗: %s", e)
         html_found_older = False
 
-    # --- 第 2 頁起：透過 JSON API 取得 ---
+    # --- 透過 JSON API 取得後續頁面 ---
+    # HTML 首頁成功時從第 2 頁開始；失敗時從第 1 頁開始以彌補遺失的資料
+    api_start_page = 2 if candidates_from_html else 1
+    if api_start_page == 1:
+        logger.info("HTML 首頁失敗，API 將從第 1 頁開始補抓")
+
     api_articles = []
     stop_paging = html_found_older
 
-    for page_num in range(2, MAX_PAGES + 1):
+    for page_num in range(api_start_page, MAX_PAGES + 1):
         if stop_paging:
             break
         try:
