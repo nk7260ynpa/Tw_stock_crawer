@@ -20,7 +20,7 @@ docker run -d \
     --dns 8.8.4.4 \
     -p "$PORT:$PORT" \
     -v "$LOG_DIR:/workspace/logs" \
-    --rm \
+    --restart=always \
     "$IMAGE_NAME"
 
 echo "Server started at http://127.0.0.1:$PORT/"
