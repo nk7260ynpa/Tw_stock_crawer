@@ -78,6 +78,16 @@ def test_remove_comma() -> None:
     assert result == expect
 
 
+def test_remove_comma_handles_missing_values() -> None:
+    """None、NaN、'None'、'nan' 等缺值皆視為 '0'。"""
+    assert mgts.remove_comma(None) == "0"
+    assert mgts.remove_comma(float("nan")) == "0"
+    assert mgts.remove_comma("None") == "0"
+    assert mgts.remove_comma("nan") == "0"
+    assert mgts.remove_comma("") == "0"
+    assert mgts.remove_comma(1234) == "1234"
+
+
 def test_post_process() -> None:
     """測試 post_process 正確轉換欄位與清洗資料。"""
     df = pd.DataFrame(

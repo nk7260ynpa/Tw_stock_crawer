@@ -66,16 +66,26 @@ def zh2en_columns() -> dict[str, str]:
     return zh2en_columns
 
 
-def remove_comma(x: str) -> str:
-    """移除字串中的逗號。
+def remove_comma(x) -> str:
+    """移除字串中的逗號；None/NaN/空字串視為 '0'。
+
+    部分欄位於休市或無交易時可能為 None/NaN，
+    需要統一視為 0 以利後續轉型為 int。
 
     Args:
-        x: 含有逗號的字串。
+        x: 含有逗號的字串、None、NaN 或數值。
 
     Returns:
-        移除逗號後的字串。
+        移除逗號後的字串；缺值回傳 '0'。
     """
-    return x.replace(",", "")
+    if x is None:
+        return "0"
+    if isinstance(x, float) and pd.isna(x):
+        return "0"
+    s = str(x)
+    if s in ("nan", "None", "NaT", ""):
+        return "0"
+    return s.replace(",", "")
 
 
 def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:

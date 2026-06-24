@@ -61,7 +61,8 @@ def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
     )
     df["Change"] = (
         df["Change"].replace("除權", None)
-        .replace("除息", None).replace("---", None).astype(float)
+        .replace("除息", None).replace("除權息", None)
+        .replace("---", None).str.replace(",", "").astype(float)
     )
     df["Open"] = (
         df["Open"].replace("----", None)

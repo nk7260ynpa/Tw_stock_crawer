@@ -249,6 +249,11 @@ Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）
 
 ## CHANGELOG
 
+### v2.10.3
+- 強化三大法人（faoi）與融資融券（mgts）的 `remove_comma()`：將 None / NaN / 空字串等缺值（休市或無交易時可能出現）統一視為 `'0'`，避免後續轉型為 int 時拋出例外
+- 修復上櫃（tpex）`post_process` 的 `Change` 欄位解析：新增「除權息」字串處理（視為缺值），並先去除千分位逗號再轉 float，避免帶逗號的漲跌值（如 `+1,070.00`）轉型失敗
+- 新增對應單元測試（test_faoi / test_mgts / test_tpex）
+
 ### v2.10.2
 - 修復 CTEE 新聞爬蟲首頁 HTML 失敗時的 fallback 問題：HTML 列表頁被 403 Forbidden 阻擋時，API 分頁仍從第 2 頁開始，跳過第 1 頁的最新文章
 - 新增 `api_start_page` 變數，HTML 首頁失敗時 API 自動從第 1 頁開始補抓
