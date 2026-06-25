@@ -1,0 +1,51 @@
+# GitLab CI/CD：合併進 main 時，把儲存庫鏡像推送到 GitHub
+#
+# ── 流程 ───────────────────────────────────────────────────────────
+#   feature 分支 → 開 Merge Request → 合併進 main → 本管線於 main 觸發
+#   → 將 main 推送（鏡像）到 GitHub。
+#
+# ── 認證來源 ───────────────────────────────────────────────────────
+#   GITHUB_SSH_KEY  由 GitLab Runner 注入（config.toml 的 environment 或掛載）。
+#                   其值可為 SSH 私鑰的「檔案路徑」或「私鑰內容」，本管線兩者皆支援。
+#                   對應公鑰需加到 GitHub repo → Settings → Deploy keys，並勾選
+#                   Allow write access。
+#
+# ── 注意 ───────────────────────────────────────────────────────────
+#   GIT_DEPTH: 0 取得完整歷史，避免 shallow clone 導致 GitHub 推送被拒。
+
+stages:
+  - mirror
+
+workflow:
+  rules:
+    # 僅在 main 分支（含 MR 合併產生的 main commit）建立管線
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+mirror-to-github:
+  stage: mirror
+  image: alpine:3.20
+  variables:
+    GIT_DEPTH: 0                                       # 完整歷史，確保可 fast-forward 推送
+    GITHUB_REPO: "git@github.com:nk7260ynpa/Tw_stock_crawer.git"
+    SSH_KEY_PATH: "/tmp/github_deploy_key"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  before_script:
+    - apk add --no-cache git openssh-client
+    - |
+      if [ -z "$GITHUB_SSH_KEY" ]; then
+        echo "ERROR: GITHUB_SSH_KEY 未設定（應由 GitLab Runner 注入）" >&2
+        exit 1
+      fi
+      # GITHUB_SSH_KEY 可能是金鑰檔路徑，或直接是金鑰內容，兩者皆處理
+      if [ -f "$GITHUB_SSH_KEY" ]; then
+        install -m 600 "$GITHUB_SSH_KEY" "$SSH_KEY_PATH"
+      else
+        printf '%s\n' "$GITHUB_SSH_KEY" > "$SSH_KEY_PATH"
+        chmod 600 "$SSH_KEY_PATH"
+      fi
+  script:
+    - export GIT_SSH_COMMAND="ssh -i $SSH_KEY_PATH -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes"
+    - git remote remove github 2>/dev/null || true
+    - git remote add github "$GITHUB_REPO"
+    - git push github "HEAD:refs/heads/main"
