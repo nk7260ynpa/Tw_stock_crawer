@@ -241,14 +241,36 @@ git push origin v1.0.0
 | `DOCKERHUB_USERNAME` | DockerHub 帳號 |
 | `DOCKERHUB_TOKEN` | DockerHub Access Token |
 
-### GitLab → GitHub 鏡像
+### GitLab CI 管線（deploy + mirror）
 
-開發主線在自架 GitLab（`origin`），GitHub 為對外鏡像（`github`）。`.gitlab-ci.yml` 的
-`mirror-to-github` job 負責把儲存庫鏡像推送到 GitHub。
+開發主線在自架 GitLab（`origin`），GitHub 為對外鏡像（`github`）。`.gitlab-ci.yml`
+**僅在 `main` 打上 `vX.Y.Z` 版本 tag 並 push 到 `origin` 時觸發**，管線含兩個平行 job：
 
-**觸發時機**：feature 分支開 MR 合併進 `main` **當下不會鏡像**；必須在 `main` 打上
-`vX.Y.Z` 版本 tag 並 push 到 `origin` 後，管線才會於該 tag 觸發，將 `main` 與該 tag
-一併鏡像推到 GitHub。GitHub 收到 tag 後再由 GitHub Actions 建置並發布 Docker image。
+| Job | Stage | 作用 |
+|-----|-------|------|
+| `deploy` | deploy | 在 host daemon 本地重建 image 並重啟爬蟲容器（線上即時生效） |
+| `mirror-to-github` | mirror | 把 `main` 與該 tag 一併鏡像推送到 GitHub |
+
+**觸發時機**：feature 分支開 MR 合併進 `main` **當下不會觸發**；必須在 `main` 打上
+`vX.Y.Z` 版本 tag 並 push 到 `origin` 後，管線才會於該 tag 觸發。
+
+#### deploy（本地重新部署）
+
+GitLab Runner 為 docker executor 並掛載 `/var/run/docker.sock`，故 job 內的 `docker`
+指令直接作用在 host daemon。流程嚴格維持 **build → `rm -f` 舊容器 → `run` 新容器**
+順序（build 失敗時舊容器原封不動，把服務中斷時間壓到最短），最後 `docker image prune`
+清掉懸空 image。新容器參數與 `run.sh` 對齊：
+
+- image `nk7260ynpa/tw_stocker_crawler`（同時打 `:<版本>` 與 `:latest`）、容器名 `tw_stocker_crawler`
+- `--network db_network`、`--dns 8.8.8.8 --dns 8.8.4.4`、`--restart=always`
+- **不對外公開 6738 port**（與 `run.sh` 一致，僅供 `db_network` 內部容器以
+  `http://tw_stocker_crawler:6738` 存取）
+- log 落**具名 volume** `tw_stocker_crawler_logs`（掛載到容器 `/workspace/logs`；
+  CI 環境無 host 端 logs 目錄，故改用具名 volume 而非 bind mount）
+
+#### mirror-to-github（鏡像）
+
+GitHub 收到 tag 後再由 GitHub Actions 建置並發布 Docker image 至 DockerHub。
 
 > 鏡像所需的 SSH 金鑰由 GitLab Runner 以 `GITHUB_SSH_KEY` 變數注入（對應公鑰須加到
 > GitHub repo 的 Deploy keys 並允許寫入）。

@@ -1,11 +1,18 @@
-# GitLab CI/CD：在 main 打上 vX.Y.Z 版本 tag 時，把儲存庫鏡像推送到 GitHub
+# GitLab CI/CD：在 main 打上 vX.Y.Z 版本 tag 時，本地重新部署 + 鏡像推送到 GitHub
 #
 # ── 流程 ───────────────────────────────────────────────────────────
-#   feature 分支 → 開 Merge Request → 合併進 main（此時「不」鏡像）
-#   → 在 main 打上 vX.Y.Z 版本 tag → 本管線於該 tag 觸發
-#   → 將 main 與該 tag 一併推送（鏡像）到 GitHub。
+#   feature 分支 → 開 Merge Request → 合併進 main（此時「不」觸發管線）
+#   → 在 main 打上 vX.Y.Z 版本 tag → 本管線於該 tag 觸發，兩個 job 平行執行：
+#     1. deploy：GitLab Runner 於 host daemon 本地 build 新 image 並重啟容器。
+#     2. mirror：將 main 與該 tag 一併推送（鏡像）到 GitHub。
 #
-# ── 認證來源 ───────────────────────────────────────────────────────
+# ── deploy 認證／環境 ──────────────────────────────────────────────
+#   GitLab Runner 為 docker executor 並掛載 /var/run/docker.sock，故 job 內的
+#   docker 指令直接作用在 host daemon；新容器接 db_network，供
+#   Tw_stock_DB_Operating 以容器名 http://tw_stocker_crawler:6738 內部呼叫
+#   （與 run.sh 一致，不對外公開 6738 port）。
+#
+# ── mirror 認證來源 ────────────────────────────────────────────────
 #   GITHUB_SSH_KEY  由 GitLab Runner 注入（config.toml 的 environment 或掛載）。
 #                   其值可為 SSH 私鑰的「檔案路徑」或「私鑰內容」，本管線兩者皆支援。
 #                   對應公鑰需加到 GitHub repo → Settings → Deploy keys，並勾選
@@ -15,6 +22,7 @@
 #   GIT_DEPTH: 0 取得完整歷史，避免 shallow clone 導致 GitHub 推送被拒。
 
 stages:
+  - deploy
   - mirror
 
 workflow:
@@ -22,9 +30,43 @@ workflow:
     # 僅在 main 打上 vX.Y.Z 版本 tag 時建立管線（合併進 main 當下不觸發）
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
 
+# ── deploy：於 host daemon 本地重建 image 並重啟爬蟲容器 ─────────────
+#   此爬蟲服務僅透過 db_network 內部供其他容器存取（與 run.sh 一致，不對外
+#   公開 6738 port），故 docker run 不加 -p 對外埠對應。
+#   log 改落具名 volume tw_stocker_crawler_logs（CI 環境無 host 端 logs 目錄）。
+deploy:
+  stage: deploy
+  image: docker:27
+  needs: []
+  resource_group: deploy                              # 序列化部署，避免同時重啟容器
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  variables:
+    IMAGE: "nk7260ynpa/tw_stocker_crawler"
+    CONTAINER: "tw_stocker_crawler"
+    LOGS_VOLUME: "tw_stocker_crawler_logs"
+    LOGS_PATH: "/workspace/logs"
+  before_script:
+    - export VERSION="${CI_COMMIT_TAG#v}"             # 去除 v 前綴作為 image 版本標籤
+  script:
+    # 嚴格維持 build → rm -f → run 順序：先確認新 image 建置成功，再移除舊容器，
+    # 最後啟動新容器，把服務中斷時間壓到最短（build 失敗則舊容器原封不動）。
+    - docker build -f docker/Dockerfile -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
+    - docker rm -f "$CONTAINER" || true
+    - docker run -d
+        --name "$CONTAINER"
+        --restart=always
+        --network db_network
+        --dns 8.8.8.8
+        --dns 8.8.4.4
+        --volume "$LOGS_VOLUME:$LOGS_PATH"
+        "$IMAGE:latest"
+    - docker image prune -f || true                   # 清掉懸空 image，釋放磁碟
+
 mirror-to-github:
   stage: mirror
   image: alpine:3.20
+  needs: []                                           # 與 deploy 平行，不互相阻塞
   variables:
     GIT_DEPTH: 0                                       # 完整歷史，確保可 fast-forward 推送
     GITHUB_REPO: "git@github.com:nk7260ynpa/Tw_stock_crawer.git"
