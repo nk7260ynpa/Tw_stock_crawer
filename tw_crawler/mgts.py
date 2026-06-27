@@ -8,6 +8,8 @@ import logging
 import pandas as pd
 import requests
 
+from ._http import REQUEST_TIMEOUT, retry_call
+
 logger = logging.getLogger(__name__)
 
 
@@ -198,8 +200,12 @@ def fetch_mgts_data(date: str) -> dict:
         "https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN"
         f"?date={date.replace('-', '')}&selectType=ALL&response=json"
     )
-    response = requests.get(url)
-    return response.json()
+    # 加上逾時並對暫時性連線錯誤指數退避重試，避免 DNS／連線抖動整批失敗。
+    return retry_call(
+        lambda: requests.get(url, timeout=REQUEST_TIMEOUT).json(),
+        exceptions=(requests.RequestException,),
+        context="融資融券資料",
+    )
 
 
 def mgts_crawler(date: str) -> pd.DataFrame:

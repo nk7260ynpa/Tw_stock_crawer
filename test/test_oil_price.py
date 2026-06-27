@@ -54,6 +54,28 @@ def test_fetch_oil_data(mocker: MockerFixture) -> None:
     pd.testing.assert_frame_equal(result, mock_df)
 
 
+def test_fetch_oil_data_retry_then_success(mocker: MockerFixture) -> None:
+    """yfinance 第一次失敗（限流／來源暫時不可用）後重試成功。"""
+    mock_df = _make_history_df()
+    mock_ticker = mocker.Mock()
+    # 第一次拋出 yfinance 內部常見的例外，第二次成功回傳資料。
+    mock_ticker.history.side_effect = [
+        TypeError("'NoneType' object is not subscriptable"),
+        mock_df,
+    ]
+    mocker.patch(
+        "tw_crawler.oil_price.yf.Ticker",
+        return_value=mock_ticker,
+    )
+    # 避免重試時真的 sleep，加速測試。
+    mocker.patch("tw_crawler._http.time.sleep")
+
+    result = oil_price.fetch_oil_data("CL=F", "2026-03-18")
+
+    assert mock_ticker.history.call_count == 2
+    pd.testing.assert_frame_equal(result, mock_df)
+
+
 def test_parse_oil_data_normal() -> None:
     """測試正常解析原油價格資料。"""
     df = _make_history_df()

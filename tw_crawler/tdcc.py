@@ -9,6 +9,8 @@ import logging
 import pandas as pd
 import requests
 
+from ._http import REQUEST_TIMEOUT, retry_call
+
 logger = logging.getLogger(__name__)
 
 
@@ -101,8 +103,18 @@ def fetch_tdcc_data() -> list[dict]:
         TDCC 回傳的 JSON 陣列。
     """
     url = "https://openapi.tdcc.com.tw/v1/opendata/1-5"
-    response = requests.get(url)
-    response.raise_for_status()
+
+    def _get() -> requests.Response:
+        resp = requests.get(url, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        return resp
+
+    # 對暫時性連線錯誤與 5xx 指數退避重試，避免 DNS／連線抖動整批失敗。
+    response = retry_call(
+        _get,
+        exceptions=(requests.RequestException,),
+        context="TDCC 股權分散表資料",
+    )
     return response.json()
 
 
