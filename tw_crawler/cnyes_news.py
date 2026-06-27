@@ -16,6 +16,8 @@ import pandas as pd
 import requests
 from markdownify import markdownify as md
 
+from ._http import retry_call
+
 logger = logging.getLogger(__name__)
 
 # CNYES 台股新聞 API URL
@@ -99,12 +101,22 @@ def fetch_news_page(page: int) -> dict:
         ValueError: 當回應非預期格式時。
     """
     logger.info("取得 CNYES 新聞 API 第 %d 頁", page)
-    response = requests.get(
-        CNYES_API_URL,
-        params={"page": page},
-        timeout=REQUEST_TIMEOUT,
+
+    def _get() -> requests.Response:
+        resp = requests.get(
+            CNYES_API_URL,
+            params={"page": page},
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        return resp
+
+    # 對暫時性連線錯誤與 HTTP 錯誤狀態指數退避重試，避免 DNS／連線抖動整批失敗。
+    response = retry_call(
+        _get,
+        exceptions=(requests.RequestException,),
+        context=f"CNYES 新聞 API 第 {page} 頁",
     )
-    response.raise_for_status()
     data = response.json()
 
     if data.get("statusCode") != 200:

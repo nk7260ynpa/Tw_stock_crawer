@@ -8,6 +8,9 @@ import io
 import cloudscraper
 import numpy as np
 import pandas as pd
+import requests
+
+from ._http import REQUEST_TIMEOUT, retry_call
 
 
 def webzh2en_columns() -> dict[str, str]:
@@ -106,8 +109,18 @@ def fetch_taifex_data(date: str) -> str:
         "queryEndDate": date
     }
     scraper = cloudscraper.create_scraper()
-    response = scraper.post(url, data=payload)
-    response.raise_for_status()
+
+    def _post() -> requests.Response:
+        resp = scraper.post(url, data=payload, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        return resp
+
+    # 對暫時性連線錯誤與 HTTP 錯誤狀態指數退避重試，避免 DNS／連線抖動整批失敗。
+    response = retry_call(
+        _post,
+        exceptions=(requests.RequestException,),
+        context="TAIFEX 期貨資料",
+    )
     return response.text
 
 

@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import yfinance as yf
 
+from ._http import retry_call
+
 logger = logging.getLogger(__name__)
 
 # 原油期貨 ticker 對照表
@@ -44,7 +46,12 @@ def fetch_oil_data(
         "Fetching %s data from %s to %s", ticker, start_date, end_date
     )
     oil = yf.Ticker(ticker)
-    df = oil.history(start=start_date, end=end_date)
+    # yfinance 對限流／來源暫時不可用時可能拋出例外（如內部的
+    # 'NoneType' object is not subscriptable），以指數退避重試自癒。
+    df = retry_call(
+        lambda: oil.history(start=start_date, end=end_date),
+        context=f"取得 {ticker} 原油 yfinance 資料",
+    )
     return df
 
 
@@ -141,7 +148,8 @@ def oil_price_crawler(date: str) -> list[dict]:
 
     if not results:
         raise ValueError(
-            f"無法取得任何原油價格資料（查詢日期：{date}）"
+            f"無法取得任何原油價格資料（查詢日期：{date}），"
+            "資料未發布或來源暫時不可用"
         )
 
     logger.info(

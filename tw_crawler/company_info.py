@@ -11,6 +11,8 @@ import re
 import pandas as pd
 import requests
 
+from ._http import retry_call
+
 logger = logging.getLogger(__name__)
 
 TWSE_API_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"
@@ -184,8 +186,18 @@ def fetch_twse_company_info() -> list[dict]:
         requests.RequestException: 當 HTTP 請求失敗時。
     """
     logger.info("開始從 TWSE OpenAPI 取得上市公司基本資料")
-    response = requests.get(TWSE_API_URL, timeout=30)
-    response.raise_for_status()
+
+    def _get() -> requests.Response:
+        resp = requests.get(TWSE_API_URL, timeout=30)
+        resp.raise_for_status()
+        return resp
+
+    # 對暫時性連線錯誤與 HTTP 錯誤狀態指數退避重試，避免 DNS／連線抖動整批失敗。
+    response = retry_call(
+        _get,
+        exceptions=(requests.RequestException,),
+        context="TWSE 上市公司基本資料",
+    )
     data = response.json()
     logger.info("TWSE 上市公司基本資料取得完成，共 %d 筆", len(data))
     return data
@@ -201,8 +213,18 @@ def fetch_tpex_company_info() -> list[dict]:
         requests.RequestException: 當 HTTP 請求失敗時。
     """
     logger.info("開始從 TPEX OpenAPI 取得上櫃公司基本資料")
-    response = requests.get(TPEX_API_URL, timeout=30)
-    response.raise_for_status()
+
+    def _get() -> requests.Response:
+        resp = requests.get(TPEX_API_URL, timeout=30)
+        resp.raise_for_status()
+        return resp
+
+    # 對暫時性連線錯誤與 HTTP 錯誤狀態指數退避重試，避免 DNS／連線抖動整批失敗。
+    response = retry_call(
+        _get,
+        exceptions=(requests.RequestException,),
+        context="TPEX 上櫃公司基本資料",
+    )
     data = response.json()
     logger.info("TPEX 上櫃公司基本資料取得完成，共 %d 筆", len(data))
     return data

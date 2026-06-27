@@ -1,8 +1,10 @@
 """TPEX 上櫃股票爬蟲測試模組。"""
 
 import pandas as pd
+import pytest
 from pytest_mock import MockerFixture
 
+from tw_crawler._http import NonJsonResponseError
 from tw_crawler.tpex import (
     fetch_tpex_data,
     parse_tpex_data,
@@ -132,23 +134,89 @@ TPEX_SAMPLE_DATA = [[
 
 
 def test_fetch_tpex_data(mocker: MockerFixture) -> None:
+    """正常情況下 fetch_tpex_data 透過 safe_post_json 取得 JSON。"""
     mock_response = {
         "tables": [{
             "fields": TPEX_FIELDS_THOUSAND,
             "data": TPEX_SAMPLE_DATA,
         }]
     }
-    mock_scraper = mocker.Mock(
-        post=lambda url, data: mocker.Mock(
-            json=lambda: mock_response,
-        ),
+    mock_post_result = mocker.Mock(
+        status_code=200,
+        json=lambda: mock_response,
     )
+    mock_scraper = mocker.Mock()
+    mock_scraper.post.return_value = mock_post_result
     mocker.patch(
         'tw_crawler.tpex.cloudscraper.create_scraper',
         return_value=mock_scraper,
     )
     response = fetch_tpex_data("2024-10-29")
     assert response == mock_response
+
+
+def test_fetch_tpex_data_non_json_raises_clear_error(
+    mocker: MockerFixture,
+) -> None:
+    """TPEX 回傳非 JSON（HTML 錯誤頁／被擋）時應拋出帶內文節錄的清楚例外。
+
+    對應 06-27 線上故障：``scraper.post(...).json()`` 在收到非 JSON 時會拋出
+    不透明的 ``Expecting value: line 1 column 1 (char 0)``；改用 safe_post_json
+    後應改拋 NonJsonResponseError 並在訊息中節錄實際回應內文。
+    """
+    html_body = (
+        "<html><body>403 Forbidden - access denied by WAF</body></html>"
+    )
+
+    def _raise_json() -> None:
+        raise ValueError("Expecting value: line 1 column 1 (char 0)")
+
+    mock_post_result = mocker.Mock(
+        status_code=200,
+        text=html_body,
+        json=_raise_json,
+    )
+    mock_scraper = mocker.Mock()
+    mock_scraper.post.return_value = mock_post_result
+    mocker.patch(
+        'tw_crawler.tpex.cloudscraper.create_scraper',
+        return_value=mock_scraper,
+    )
+    # 避免重試時真的 sleep，加速測試。
+    mocker.patch('tw_crawler._http.time.sleep')
+
+    with pytest.raises(NonJsonResponseError) as exc_info:
+        fetch_tpex_data("2024-10-29")
+
+    message = str(exc_info.value)
+    assert "TPEX 上櫃股票資料" in message
+    assert "非 JSON" in message
+    assert "403 Forbidden" in message  # 內文節錄可見實際回應
+
+
+def test_fetch_tpex_data_non_2xx_raises_clear_error(
+    mocker: MockerFixture,
+) -> None:
+    """TPEX 回應非 2xx 狀態碼時應拋出帶狀態碼與內文節錄的清楚例外。"""
+    mock_post_result = mocker.Mock(
+        status_code=503,
+        text="Service Temporarily Unavailable",
+        json=lambda: {},
+    )
+    mock_scraper = mocker.Mock()
+    mock_scraper.post.return_value = mock_post_result
+    mocker.patch(
+        'tw_crawler.tpex.cloudscraper.create_scraper',
+        return_value=mock_scraper,
+    )
+    mocker.patch('tw_crawler._http.time.sleep')
+
+    with pytest.raises(NonJsonResponseError) as exc_info:
+        fetch_tpex_data("2024-10-29")
+
+    message = str(exc_info.value)
+    assert "503" in message
+    assert "Service Temporarily Unavailable" in message
 
 
 def test_parse_tpex_data() -> None:

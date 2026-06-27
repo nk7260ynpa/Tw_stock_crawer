@@ -8,6 +8,8 @@ import logging
 import cloudscraper
 import pandas as pd
 
+from ._http import safe_post_json
+
 logger = logging.getLogger(__name__)
 
 
@@ -110,17 +112,28 @@ def post_process(df: pd.DataFrame, date: str) -> pd.DataFrame:
 def fetch_tpex_data(date: str) -> dict:
     """從 TPEX 網站取得指定日期的股票資料。
 
+    使用 :func:`safe_post_json` 取代直接 ``scraper.post(...).json()``：
+    先檢查 status_code 再解析 JSON，遇到非 2xx／非 JSON（多為暫時性
+    WAF／限流／HTML 錯誤頁）時自動指數退避重試，並在全敗時拋出帶
+    回應內文節錄的清楚例外，而非不透明的 ``Expecting value`` 錯誤。
+
     Args:
         date: 日期字串，格式為 'YYYY-MM-DD'。
 
     Returns:
         TPEX API 回傳的 JSON 資料。
+
+    Raises:
+        NonJsonResponseError: 回應非 2xx 或非 JSON（重試後仍失敗）。
+        requests.RequestException: 連線層級錯誤（重試後仍失敗）。
     """
     scraper = cloudscraper.create_scraper()
     url = "https://www.tpex.org.tw/www/zh-tw/afterTrading/otc"
     formatted_date = date.replace("-", "/")
     data = {"date": formatted_date, "type": "AL"}
-    response = scraper.post(url, data=data).json()
+    response = safe_post_json(
+        scraper, url, data=data, context="TPEX 上櫃股票資料",
+    )
     return response
 
 

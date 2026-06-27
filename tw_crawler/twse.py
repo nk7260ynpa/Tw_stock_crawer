@@ -8,6 +8,8 @@ import logging
 import pandas as pd
 import requests
 
+from ._http import REQUEST_TIMEOUT, retry_call
+
 logger = logging.getLogger(__name__)
 
 
@@ -166,8 +168,12 @@ def fetch_twse_data(date: str) -> dict:
         "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
         f"?date={date.replace('-', '')}&type=ALL&response=json"
     )
-    response = requests.get(url)
-    return response.json()
+    # 加上逾時並對暫時性連線錯誤指數退避重試，避免 DNS／連線抖動整批失敗。
+    return retry_call(
+        lambda: requests.get(url, timeout=REQUEST_TIMEOUT).json(),
+        exceptions=(requests.RequestException,),
+        context="TWSE 上市股票資料",
+    )
 
 
 def gen_empty_date_df() -> pd.DataFrame:

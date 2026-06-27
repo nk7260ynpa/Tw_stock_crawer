@@ -283,6 +283,16 @@ Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）
 
 ## CHANGELOG
 
+### v2.12.0
+- 新增共用 HTTP 韌性工具 `tw_crawler/_http.py`（套件私有，不對外 re-export）：
+  - `retry_call()`：通用「呼叫 → 失敗指數退避重試 → 全敗丟出最後例外」
+  - `safe_post_json()`：POST 後先檢查 `status_code` 再解析 JSON，非 2xx／非 JSON 時拋出帶回應內文節錄（前約 200 字）的清楚例外，內部套用退避重試
+  - 常數 `DEFAULT_RETRIES`、`DEFAULT_BASE_DELAY`、`REQUEST_TIMEOUT`
+- 修復 TPEX 上櫃爬蟲：`fetch_tpex_data` 改用 `safe_post_json`，解決 `scraper.post(...).json()` 收到非 JSON（WAF／限流／HTML 錯誤頁）時拋出不透明 `Expecting value: line 1 column 1 (char 0)` 的問題（診斷確認端點與 payload 仍正確，屬暫時性錯誤，故僅加韌性、未改 URL／英文欄名）
+- yfinance 系列（oil／gold／bitcoin／currency／indices）的 `fetch_*_data` 以 `retry_call` 包住 `history()` 呼叫，對限流／來源暫時不可用自動退避重試；維持優雅降級與 `list[dict]` 回傳型別，並在全無資料時的錯誤訊息標明「資料未發布或來源暫時不可用」
+- 其餘台股／新聞爬蟲（twse／faoi／mgts／tdcc／taifex／cnyes_news／company_info）的 fetch 一律加上請求逾時與指數退避重試，讓 DNS／連線抖動等暫時性錯誤就地自癒（moneyudn_news 因已有自有延遲與逐頁容錯機制故維持不變）
+- 新增 `test/test_http.py`，並補強 TPEX 非 JSON／非 2xx 與 yfinance 重試成功的測試
+
 ### v2.10.3
 - 強化三大法人（faoi）與融資融券（mgts）的 `remove_comma()`：將 None / NaN / 空字串等缺值（休市或無交易時可能出現）統一視為 `'0'`，避免後續轉型為 int 時拋出例外
 - 修復上櫃（tpex）`post_process` 的 `Change` 欄位解析：新增「除權息」字串處理（視為缺值），並先去除千分位逗號再轉 float，避免帶逗號的漲跌值（如 `+1,070.00`）轉型失敗
