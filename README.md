@@ -283,6 +283,11 @@ Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）
 
 ## CHANGELOG
 
+### v2.12.1
+- 重構 `server.py`（純重構、對外行為與 API 完全不變）：以共用 `Annotated` Query 型別（`DateParam`／`HoursParam`）+ 三組路由工廠（Market／News／Commodity）+ 設定表迴圈 `app.add_api_route` 註冊，取代 19 個 endpoint 重複的 date／hours Query、try/except 與 logger 樣板，行數由 487 降至 299
+- 保留模組層 `CRAWLERS` dict 與 `_get_date`／`_run_crawler`／`crawl_all`／`/company_info`／logging 設定不變；新聞／商品工廠在「請求當下」以 `getattr(tw_crawler, ...)` 取得 crawler，確保既有 `mocker.patch` 測試仍生效
+- OpenAPI paths schema（路徑、Query 參數、驗證範圍、描述、summary、operationId、註冊順序）經比對與重構前 byte-identical；`test/test_server.py` 未修改即全數通過
+
 ### v2.12.0
 - 新增共用 HTTP 韌性工具 `tw_crawler/_http.py`（套件私有，不對外 re-export）：
   - `retry_call()`：通用「呼叫 → 失敗指數退避重試 → 全敗丟出最後例外」
