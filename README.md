@@ -283,10 +283,10 @@ Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）
 
 ## CHANGELOG
 
-### v2.12.1
-- 重構 `server.py`（純重構、對外行為與 API 完全不變）：以共用 `Annotated` Query 型別（`DateParam`／`HoursParam`）+ 三組路由工廠（Market／News／Commodity）+ 設定表迴圈 `app.add_api_route` 註冊，取代 19 個 endpoint 重複的 date／hours Query、try/except 與 logger 樣板，行數由 487 降至 299
-- 保留模組層 `CRAWLERS` dict 與 `_get_date`／`_run_crawler`／`crawl_all`／`/company_info`／logging 設定不變；新聞／商品工廠在「請求當下」以 `getattr(tw_crawler, ...)` 取得 crawler，確保既有 `mocker.patch` 測試仍生效
-- OpenAPI paths schema（路徑、Query 參數、驗證範圍、描述、summary、operationId、註冊順序）經比對與重構前 byte-identical；`test/test_server.py` 未修改即全數通過
+### v2.12.2
+- 還原 v2.12.1 的 `server.py` 重構，回到手寫 endpoint 版本（因需求誤解）：`server.py` 還原為 v2.12.0 當時純手寫 19 個 endpoint 的版本，移除路由工廠 + 共用 `Annotated` Query 型別的設計
+- 此還原僅涉及 `server.py`／版本號／本 CHANGELOG；v2.12.0（MR !3）的爬蟲錯誤修正與韌性（`tw_crawler/_http.py` 的 `retry_call`／`safe_post_json`、TPEX 改用 `safe_post_json`、yfinance 等模組的退避重試）完整保留、未受影響
+- 對外行為與 API 完全不變（端點、參數、回傳格式皆與 v2.12.1 相同），`test/test_server.py` 未修改即全數通過
 
 ### v2.12.0
 - 新增共用 HTTP 韌性工具 `tw_crawler/_http.py`（套件私有，不對外 re-export）：

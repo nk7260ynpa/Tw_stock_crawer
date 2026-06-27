@@ -7,10 +7,8 @@
 import datetime
 import logging
 import os
-from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from logging.handlers import TimedRotatingFileHandler
-from typing import Annotated
 
 from fastapi import FastAPI, Query
 
@@ -43,16 +41,6 @@ logger.setLevel(logging.INFO)
 logger.addHandler(log_handler)
 
 app = FastAPI()
-
-# 共用 Query 參數型別（Annotated）：沿用原本的 str／int 內層標註（搭配 None 預設），
-# 消除各 endpoint 重複的 date／hours Query 樣板，且 OpenAPI schema 與重構前完全一致。
-DateParam = Annotated[
-    str, Query(description="查詢日期，格式為 YYYY-MM-DD，預設為當天")
-]
-HoursParam = Annotated[
-    int,
-    Query(description="抓取過去幾小時內的新聞（與 date 擇一使用）", ge=1, le=72),
-]
 
 CRAWLERS = {
     "twse": tw_crawler.twse_crawler,
@@ -132,148 +120,347 @@ def crawl_all(
     return {"date": date, "data": results}
 
 
-# === 路由工廠 ===
-# 以「設定表 + 工廠 + 迴圈 add_api_route」收斂同構 endpoint，消除重複的 date／hours
-# Query、try/except 與 logger 樣板。新聞／商品工廠在「請求當下」才以 getattr 取得對應
-# crawler（不在註冊時捕捉函式參考），確保測試的 mocker.patch 仍可生效。
-
-# --- Market（上市／上櫃／期貨／三大法人／融資融券／集保）---
-# 經模組層 CRAWLERS dict 呼叫（供 mocker.patch("server.CRAWLERS")）。
-_MARKET_ENDPOINTS = [
-    ("twse", "爬取指定日期的上市股票資料。"),
-    ("tpex", "爬取指定日期的上櫃股票資料。"),
-    ("taifex", "爬取指定日期的期貨資料。"),
-    ("faoi", "爬取指定日期的三大法人買賣超資料。"),
-    ("mgts", "爬取指定日期的融資融券資料。"),
-    ("tdcc", "爬取集保戶股權分散表資料（僅回傳最新一期）。"),
-]
+@app.get("/twse")
+def crawl_twse(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取指定日期的上市股票資料。"""
+    return _run_crawler("twse", _get_date(date))
 
 
-def _make_market_endpoint(name: str, description: str) -> Callable:
-    """建立單一股市爬蟲 endpoint（經 CRAWLERS 呼叫）。"""
-
-    def endpoint(date: DateParam = None) -> dict:
-        return _run_crawler(name, _get_date(date))
-
-    endpoint.__name__ = f"crawl_{name}"
-    endpoint.__doc__ = description
-    return endpoint
-
-
-# --- News（CTEE／鉅亨網／PTT／聯合新聞網經濟日報），支援 date／hours 雙模式 ---
-# (key, log 標籤, 描述首行, 單位詞)
-_NEWS_ENDPOINTS = [
-    ("ctee", "CTEE", "爬取 CTEE 工商時報股市新聞。", "新聞"),
-    ("cnyes", "CNYES", "爬取鉅亨網台股新聞。", "新聞"),
-    ("ptt", "PTT", "爬取 PTT 股版文章。", "文章"),
-    ("moneyudn", "MoneyUDN", "爬取聯合新聞網經濟日報台股新聞。", "新聞"),
-]
+@app.get("/tpex")
+def crawl_tpex(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取指定日期的上櫃股票資料。"""
+    return _run_crawler("tpex", _get_date(date))
 
 
-def _make_news_endpoint(
-    key: str, label: str, head: str, unit: str
-) -> Callable:
-    """建立單一新聞爬蟲 endpoint（date／hours 雙模式）。"""
-
-    def endpoint(
-        date: DateParam = None, hours: HoursParam = None
-    ) -> dict:
-        date = _get_date(date)
-        mode = f"hours={hours}" if hours else f"date={date}"
-        logger.info("Starting %s news crawler: %s", label, mode)
-        try:
-            crawler = getattr(tw_crawler, f"{key}_news_crawler")
-            df = crawler(date, hours=hours)
-            logger.info(
-                "%s news crawler completed, articles: %d", label, len(df)
-            )
-            result = {"date": date, "data": df.to_dict(orient="records")}
-            if hours is not None:
-                result["hours"] = hours
-            return result
-        except Exception as e:
-            logger.error("%s news crawler failed: %s", label, e)
-            return {"date": date, "error": str(e)}
-
-    endpoint.__name__ = f"crawl_{key}_news"
-    endpoint.__doc__ = (
-        f"{head}\n\n"
-        "支援兩種模式：\n"
-        f"- date 模式：抓取指定日期的全部{unit}\n"
-        f"- hours 模式：抓取過去 N 小時內的{unit}\n"
-        "hours 優先於 date，同時指定時以 hours 為準。"
-    )
-    return endpoint
+@app.get("/taifex")
+def crawl_taifex(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取指定日期的期貨資料。"""
+    return _run_crawler("taifex", _get_date(date))
 
 
-# --- Commodity（原油／黃金／比特幣／匯率／指數），yfinance，回傳 list[dict] ---
-# (key, 描述)；回傳直接放 list，不做 DataFrame 轉換。
-_COMMODITY_ENDPOINTS = [
-    ("oil", "爬取國際原油價格（WTI 西德州原油 + Brent 布蘭特原油）。\n\n"
-            "使用 yfinance 從 Yahoo Finance 取得原油期貨價格資料。\n"
-            "若查詢日期為非交易日，會回傳最近一個交易日的資料。"),
-    ("gold", "爬取國際黃金價格（COMEX Gold Futures）。\n\n"
-             "使用 yfinance 從 Yahoo Finance 取得黃金期貨價格資料。\n"
-             "若查詢日期為非交易日，會回傳最近一個交易日的資料。"),
-    ("bitcoin", "爬取比特幣價格（BTC-USD）。\n\n"
-                "使用 yfinance 從 Yahoo Finance 取得比特幣價格資料。\n"
-                "若查詢日期為非交易日，會回傳最近一個交易日的資料。"),
-    ("currency", "爬取國際匯率（USDTWD 美元兌台幣 + JPYTWD 日圓兌台幣）。\n\n"
-                 "使用 yfinance 從 Yahoo Finance 取得匯率資料。\n"
-                 "若查詢日期為非交易日，會回傳最近一個交易日的資料。\n"
-                 "JPYTWD 若無直接 ticker，會自動從 TWD=X / JPY=X 交叉計算。"),
-    ("indices", "爬取國際股市指數（道瓊工業指數 + 納斯達克綜合指數）。\n\n"
-                "使用 yfinance 從 Yahoo Finance 取得股市指數價格資料。\n"
-                "若查詢日期為非交易日，會回傳最近一個交易日的資料。"),
-]
+@app.get("/faoi")
+def crawl_faoi(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取指定日期的三大法人買賣超資料。"""
+    return _run_crawler("faoi", _get_date(date))
 
 
-def _make_commodity_endpoint(key: str, description: str) -> Callable:
-    """建立單一國際商品爬蟲 endpoint（回傳 list[dict]）。"""
-
-    def endpoint(date: DateParam = None) -> dict:
-        date = _get_date(date)
-        logger.info("Starting %s price crawler for date: %s", key, date)
-        try:
-            crawler = getattr(tw_crawler, f"{key}_price_crawler")
-            result = crawler(date)
-            logger.info(
-                "%s price crawler completed, products: %d",
-                key.capitalize(), len(result),
-            )
-            return {"date": date, "data": result}
-        except Exception as e:
-            logger.error(
-                "%s price crawler failed: %s", key.capitalize(), e
-            )
-            return {"date": date, "error": str(e)}
-
-    endpoint.__name__ = f"crawl_{key}_price"
-    endpoint.__doc__ = description
-    return endpoint
+@app.get("/mgts")
+def crawl_mgts(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取指定日期的融資融券資料。"""
+    return _run_crawler("mgts", _get_date(date))
 
 
-# 迴圈註冊三組同構 endpoint。
-for _name, _desc in _MARKET_ENDPOINTS:
-    app.add_api_route(
-        f"/{_name}",
-        _make_market_endpoint(_name, _desc),
-        methods=["GET"],
-    )
+@app.get("/tdcc")
+def crawl_tdcc(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取集保戶股權分散表資料（僅回傳最新一期）。"""
+    return _run_crawler("tdcc", _get_date(date))
 
-for _key, _label, _head, _unit in _NEWS_ENDPOINTS:
-    app.add_api_route(
-        f"/{_key}_news",
-        _make_news_endpoint(_key, _label, _head, _unit),
-        methods=["GET"],
-    )
 
-for _key, _desc in _COMMODITY_ENDPOINTS:
-    app.add_api_route(
-        f"/{_key}_price",
-        _make_commodity_endpoint(_key, _desc),
-        methods=["GET"],
-    )
+@app.get("/ctee_news")
+def crawl_ctee_news(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+    hours: int = Query(
+        default=None,
+        description="抓取過去幾小時內的新聞（與 date 擇一使用）",
+        ge=1,
+        le=72,
+    ),
+) -> dict:
+    """爬取 CTEE 工商時報股市新聞。
+
+    支援兩種模式：
+    - date 模式：抓取指定日期的全部新聞
+    - hours 模式：抓取過去 N 小時內的新聞
+    hours 優先於 date，同時指定時以 hours 為準。
+    """
+    date = _get_date(date)
+    mode = f"hours={hours}" if hours else f"date={date}"
+    logger.info("Starting CTEE news crawler: %s", mode)
+    try:
+        df = tw_crawler.ctee_news_crawler(date, hours=hours)
+        logger.info(
+            "CTEE news crawler completed, articles: %d", len(df)
+        )
+        result = {"date": date, "data": df.to_dict(orient="records")}
+        if hours is not None:
+            result["hours"] = hours
+        return result
+    except Exception as e:
+        logger.error("CTEE news crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
+
+
+@app.get("/cnyes_news")
+def crawl_cnyes_news(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+    hours: int = Query(
+        default=None,
+        description="抓取過去幾小時內的新聞（與 date 擇一使用）",
+        ge=1,
+        le=72,
+    ),
+) -> dict:
+    """爬取鉅亨網台股新聞。
+
+    支援兩種模式：
+    - date 模式：抓取指定日期的全部新聞
+    - hours 模式：抓取過去 N 小時內的新聞
+    hours 優先於 date，同時指定時以 hours 為準。
+    """
+    date = _get_date(date)
+    mode = f"hours={hours}" if hours else f"date={date}"
+    logger.info("Starting CNYES news crawler: %s", mode)
+    try:
+        df = tw_crawler.cnyes_news_crawler(date, hours=hours)
+        logger.info(
+            "CNYES news crawler completed, articles: %d", len(df)
+        )
+        result = {"date": date, "data": df.to_dict(orient="records")}
+        if hours is not None:
+            result["hours"] = hours
+        return result
+    except Exception as e:
+        logger.error("CNYES news crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
+
+
+@app.get("/ptt_news")
+def crawl_ptt_news(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+    hours: int = Query(
+        default=None,
+        description="抓取過去幾小時內的新聞（與 date 擇一使用）",
+        ge=1,
+        le=72,
+    ),
+) -> dict:
+    """爬取 PTT 股版文章。
+
+    支援兩種模式：
+    - date 模式：抓取指定日期的全部文章
+    - hours 模式：抓取過去 N 小時內的文章
+    hours 優先於 date，同時指定時以 hours 為準。
+    """
+    date = _get_date(date)
+    mode = f"hours={hours}" if hours else f"date={date}"
+    logger.info("Starting PTT news crawler: %s", mode)
+    try:
+        df = tw_crawler.ptt_news_crawler(date, hours=hours)
+        logger.info(
+            "PTT news crawler completed, articles: %d", len(df)
+        )
+        result = {"date": date, "data": df.to_dict(orient="records")}
+        if hours is not None:
+            result["hours"] = hours
+        return result
+    except Exception as e:
+        logger.error("PTT news crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
+
+
+@app.get("/moneyudn_news")
+def crawl_moneyudn_news(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+    hours: int = Query(
+        default=None,
+        description="抓取過去幾小時內的新聞（與 date 擇一使用）",
+        ge=1,
+        le=72,
+    ),
+) -> dict:
+    """爬取聯合新聞網經濟日報台股新聞。
+
+    支援兩種模式：
+    - date 模式：抓取指定日期的全部新聞
+    - hours 模式：抓取過去 N 小時內的新聞
+    hours 優先於 date，同時指定時以 hours 為準。
+    """
+    date = _get_date(date)
+    mode = f"hours={hours}" if hours else f"date={date}"
+    logger.info("Starting MoneyUDN news crawler: %s", mode)
+    try:
+        df = tw_crawler.moneyudn_news_crawler(date, hours=hours)
+        logger.info(
+            "MoneyUDN news crawler completed, articles: %d", len(df)
+        )
+        result = {"date": date, "data": df.to_dict(orient="records")}
+        if hours is not None:
+            result["hours"] = hours
+        return result
+    except Exception as e:
+        logger.error("MoneyUDN news crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
+
+
+@app.get("/oil_price")
+def crawl_oil_price(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取國際原油價格（WTI 西德州原油 + Brent 布蘭特原油）。
+
+    使用 yfinance 從 Yahoo Finance 取得原油期貨價格資料。
+    若查詢日期為非交易日，會回傳最近一個交易日的資料。
+    """
+    date = _get_date(date)
+    logger.info("Starting oil price crawler for date: %s", date)
+    try:
+        result = tw_crawler.oil_price_crawler(date)
+        logger.info(
+            "Oil price crawler completed, products: %d", len(result)
+        )
+        return {"date": date, "data": result}
+    except Exception as e:
+        logger.error("Oil price crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
+
+
+@app.get("/gold_price")
+def crawl_gold_price(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取國際黃金價格（COMEX Gold Futures）。
+
+    使用 yfinance 從 Yahoo Finance 取得黃金期貨價格資料。
+    若查詢日期為非交易日，會回傳最近一個交易日的資料。
+    """
+    date = _get_date(date)
+    logger.info("Starting gold price crawler for date: %s", date)
+    try:
+        result = tw_crawler.gold_price_crawler(date)
+        logger.info(
+            "Gold price crawler completed, products: %d", len(result)
+        )
+        return {"date": date, "data": result}
+    except Exception as e:
+        logger.error("Gold price crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
+
+
+@app.get("/bitcoin_price")
+def crawl_bitcoin_price(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取比特幣價格（BTC-USD）。
+
+    使用 yfinance 從 Yahoo Finance 取得比特幣價格資料。
+    若查詢日期為非交易日，會回傳最近一個交易日的資料。
+    """
+    date = _get_date(date)
+    logger.info("Starting bitcoin price crawler for date: %s", date)
+    try:
+        result = tw_crawler.bitcoin_price_crawler(date)
+        logger.info(
+            "Bitcoin price crawler completed, products: %d",
+            len(result),
+        )
+        return {"date": date, "data": result}
+    except Exception as e:
+        logger.error("Bitcoin price crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
+
+
+@app.get("/currency_price")
+def crawl_currency_price(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取國際匯率（USDTWD 美元兌台幣 + JPYTWD 日圓兌台幣）。
+
+    使用 yfinance 從 Yahoo Finance 取得匯率資料。
+    若查詢日期為非交易日，會回傳最近一個交易日的資料。
+    JPYTWD 若無直接 ticker，會自動從 TWD=X / JPY=X 交叉計算。
+    """
+    date = _get_date(date)
+    logger.info("Starting currency price crawler for date: %s", date)
+    try:
+        result = tw_crawler.currency_price_crawler(date)
+        logger.info(
+            "Currency price crawler completed, products: %d",
+            len(result),
+        )
+        return {"date": date, "data": result}
+    except Exception as e:
+        logger.error("Currency price crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
+
+
+@app.get("/indices_price")
+def crawl_indices_price(
+    date: str = Query(
+        default=None,
+        description="查詢日期，格式為 YYYY-MM-DD，預設為當天",
+    ),
+) -> dict:
+    """爬取國際股市指數（道瓊工業指數 + 納斯達克綜合指數）。
+
+    使用 yfinance 從 Yahoo Finance 取得股市指數價格資料。
+    若查詢日期為非交易日，會回傳最近一個交易日的資料。
+    """
+    date = _get_date(date)
+    logger.info("Starting indices price crawler for date: %s", date)
+    try:
+        result = tw_crawler.indices_price_crawler(date)
+        logger.info(
+            "Indices price crawler completed, products: %d",
+            len(result),
+        )
+        return {"date": date, "data": result}
+    except Exception as e:
+        logger.error("Indices price crawler failed: %s", e)
+        return {"date": date, "error": str(e)}
 
 
 @app.get("/company_info")
