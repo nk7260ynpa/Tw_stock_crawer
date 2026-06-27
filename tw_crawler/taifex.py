@@ -115,7 +115,7 @@ def fetch_taifex_data(date: str) -> str:
         resp.raise_for_status()
         return resp
 
-    # 對暫時性連線錯誤與 5xx 指數退避重試，避免 DNS／連線抖動整批失敗。
+    # 對暫時性連線錯誤與 HTTP 錯誤狀態指數退避重試，避免 DNS／連線抖動整批失敗。
     response = retry_call(
         _post,
         exceptions=(requests.RequestException,),

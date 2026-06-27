@@ -192,7 +192,7 @@ def fetch_twse_company_info() -> list[dict]:
         resp.raise_for_status()
         return resp
 
-    # 對暫時性連線錯誤與 5xx 指數退避重試，避免 DNS／連線抖動整批失敗。
+    # 對暫時性連線錯誤與 HTTP 錯誤狀態指數退避重試，避免 DNS／連線抖動整批失敗。
     response = retry_call(
         _get,
         exceptions=(requests.RequestException,),
@@ -219,7 +219,7 @@ def fetch_tpex_company_info() -> list[dict]:
         resp.raise_for_status()
         return resp
 
-    # 對暫時性連線錯誤與 5xx 指數退避重試，避免 DNS／連線抖動整批失敗。
+    # 對暫時性連線錯誤與 HTTP 錯誤狀態指數退避重試，避免 DNS／連線抖動整批失敗。
     response = retry_call(
         _get,
         exceptions=(requests.RequestException,),
