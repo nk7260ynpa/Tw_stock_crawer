@@ -241,6 +241,18 @@ git push origin v1.0.0
 | `DOCKERHUB_USERNAME` | DockerHub 帳號 |
 | `DOCKERHUB_TOKEN` | DockerHub Access Token |
 
+### GitLab → GitHub 鏡像
+
+開發主線在自架 GitLab（`origin`），GitHub 為對外鏡像（`github`）。`.gitlab-ci.yml` 的
+`mirror-to-github` job 負責把儲存庫鏡像推送到 GitHub。
+
+**觸發時機**：feature 分支開 MR 合併進 `main` **當下不會鏡像**；必須在 `main` 打上
+`vX.Y.Z` 版本 tag 並 push 到 `origin` 後，管線才會於該 tag 觸發，將 `main` 與該 tag
+一併鏡像推到 GitHub。GitHub 收到 tag 後再由 GitHub Actions 建置並發布 Docker image。
+
+> 鏡像所需的 SSH 金鑰由 GitLab Runner 以 `GITHUB_SSH_KEY` 變數注入（對應公鑰須加到
+> GitHub repo 的 Deploy keys 並允許寫入）。
+
 ## Log
 
 Log 檔案儲存於 `logs/` 資料夾，按日期自動輪替（保留 30 天）：
